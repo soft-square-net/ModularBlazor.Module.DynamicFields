@@ -1,0 +1,761 @@
+@page "/dynamicfields/build"
+@using System.Text.Encodings.Web
+@using System.Text.Json
+@using System.Text.Json.Nodes
+@using System.Text.Json.Serialization
+@using soft.square.net.Module.DynamicFields.Builder
+@using soft.square.net.Module.DynamicFields.Dialogs
+@inherits DynamicFieldsPageBase
+@inject IModuleDialogs ModuleDialogs
+
+@*
+  The field builder: a field's draft as a form. Pick a schema.org type and its suggested values are added; add more from
+  the type's properties, style choices from the presets, and the fields it may contain. The preview beside it is the
+  edit-content form exactly as authors will see it, with the schema.org data the values become. The draft's JSON stays
+  available as the "JSON" tab. Saving and publishing go through the same API as everything else.
+*@
+
+<PageTitle>@(IsNew ? "New field" : $"Field {FieldKey}")</PageTitle>
+
+<div class="mud-container mn-page">
+  <header class="mn-header">
+    <div>
+      <a href="dynamicfields" class="mud-typography mud-typography-body2 df-back">← Fields</a>
+      <h1 class="mud-typography mud-typography-h4">@(IsNew ? "New field" : _detail?.Draft.Title ?? FieldKey)</h1>
+      <p class="mud-typography mud-typography-body2 mn-muted">
+        @if (_detail is { } d)
+        {
+          <code>@d.Key</code>
+          <span> · @(d.LatestVersion == 0 ? "never published" : $"published: version {d.LatestVersion}")</span>
+          @if (Dirty) { <span class="mn-chip df-warn">unsaved changes</span> }
+          else if (d.HasDraftChanges) { <span class="mn-chip">draft to publish</span> }
+        }
+        else
+        {
+          <span>Choose what it is, then what it holds. Nothing is saved until you click Create.</span>
+        }
+      </p>
+    </div>
+    @if (_s is not null)
+    {
+      <div class="mn-actions">
+        <button type="button" class="mud-button-root mud-button-filled mud-button-primary mud-button-medium" @onclick="SaveAsync"
+                disabled="@(Busy || (!IsNew && !Dirty))">@(IsNew ? "Create" : "Save draft")</button>
+        @if (_detail is { } detail)
+        {
+          <button type="button" class="mud-button-root mud-button-outlined mud-button-primary mud-button-medium" @onclick="PublishAsync"
+                  disabled="@(Busy || (!Dirty && !detail.HasDraftChanges))">@(Dirty ? "Save and publish" : $"Publish version {detail.LatestVersion + 1}")</button>
+          <button type="button" class="mud-button-root mud-button-outlined mud-button-primary mud-button-medium" @onclick="TryEditorAsync"
+                  disabled="@(Busy || detail.LatestVersion == 0)" title="Opens the edit-content dialog with the newest published version">Try the editor</button>
+          @if (detail.LatestVersion == 0)
+          {
+            <button type="button" class="mud-button-root mud-button-outlined mud-button-error mud-button-medium" @onclick="DeleteAsync" disabled="@Busy">Delete</button>
+          }
+        }
+      </div>
+    }
+  </header>
+
+  @if (Error is not null)
+  {
+    <p class="mud-typography mud-typography-body2 mn-error" role="alert">@Error</p>
+  }
+
+  @if (_s is null || _catalog is null)
+  {
+    @if (Error is null) { <p class="mud-typography mud-typography-body2 mn-muted">Loading…</p> }
+  }
+  else
+  {
+    var type = TypeOf(_s.SchemaType);
+    <div class="df-builder">
+      <div class="df-builder-main">
+        <div class="df-tabs" role="tablist">
+          <button type="button" role="tab" aria-selected="@(!_jsonTab)" class="df-tab @(!_jsonTab ? "df-tab-on" : "")" @onclick="() => _jsonTab = false">Builder</button>
+          <button type="button" role="tab" aria-selected="@_jsonTab" class="df-tab @(_jsonTab ? "df-tab-on" : "")" @onclick="OpenJson">JSON</button>
+        </div>
+
+        @if (_jsonTab)
+        {
+          <section class="mud-paper mud-elevation-1 mn-card">
+            <p class="mud-typography mud-typography-body2 mn-muted">The draft as the API stores it. Change it here and apply, or go back to the builder.</p>
+            <div class="mud-input-wrapper">
+              <textarea class="mud-input-slot mn-body mn-code" rows="24" spellcheck="false" aria-label="Draft as JSON" @bind="_jsonText"></textarea>
+            </div>
+            <div class="mn-row-actions">
+              <button type="button" class="mud-button-root mud-button-filled mud-button-primary mud-button-medium" @onclick="ApplyJson">Apply to the builder</button>
+            </div>
+          </section>
+        }
+        else
+        {
+          @* 1. What it is *@
+          <section class="mud-paper mud-elevation-1 mn-card df-section">
+            <h2 class="mud-typography mud-typography-h6">1. What it is</h2>
+            <div class="df-grid">
+              @if (IsNew)
+              {
+                <div class="mud-input-control">
+                  <label class="mud-input-label" for="fb-key">Key *</label>
+                  <div class="mud-input-wrapper"><input id="fb-key" class="mud-input-slot" @bind="_s.Key" @bind:event="oninput" maxlength="64" placeholder="block.image" /></div>
+                  <div class="mud-input-helper-text">Lowercase words joined by "." or "-": block.image, post.news. Content refers to it; it never changes.</div>
+                </div>
+              }
+              <div class="mud-input-control">
+                <label class="mud-input-label" for="fb-title">Title *</label>
+                <div class="mud-input-wrapper"><input id="fb-title" class="mud-input-slot" @bind="_s.Title" @bind:event="oninput" maxlength="120" placeholder="Image" /></div>
+                <div class="mud-input-helper-text">What authors see in menus: "Image", "News story".</div>
+              </div>
+            </div>
+            <div class="mud-input-control">
+              <label class="mud-input-label" for="fb-type">schema.org type *</label>
+              <div class="mud-input-wrapper mud-input-wrapper--select">
+                <select id="fb-type" class="mud-input-slot" @bind="_s.SchemaType" @bind:after="TypeChanged">
+                  @foreach (var family in Families)
+                  {
+                    <optgroup label="@family.Name">
+                      @foreach (var t in family.Types)
+                      {
+                        <option value="@t.Name">@(new string(' ', 3 * Math.Max(0, t.Path.Count - 2)))@t.Name</option>
+                      }
+                    </optgroup>
+                  }
+                </select>
+              </div>
+              @if (type is not null)
+              {
+                <div class="mud-input-helper-text">
+                  @type.Description
+                  <span class="df-path">@string.Join(" › ", type.Path)</span>
+                  <a href="@($"https://schema.org/{type.Name}")" target="_blank" rel="noopener">schema.org/@type.Name</a>
+                </div>
+              }
+            </div>
+            <div class="mud-input-control">
+              <label class="mud-input-label" for="fb-description">Description</label>
+              <div class="mud-input-wrapper"><textarea id="fb-description" class="mud-input-slot" rows="2" maxlength="1000" @bind="_s.Description" @bind:event="oninput"></textarea></div>
+              <div class="mud-input-helper-text">When to use it; authors see it in the editor.</div>
+            </div>
+            <label class="mn-check"><input type="checkbox" @bind="_s.CanBeRoot" /> A post can be made of it (a root, with no parent): an article, a news story, a gallery page.</label>
+          </section>
+
+          @* 2. Values *@
+          <section class="mud-paper mud-elevation-1 mn-card df-section">
+            <h2 class="mud-typography mud-typography-h6">2. Values <span class="mn-muted df-count">@_s.Properties.Count</span></h2>
+            <p class="mud-typography mud-typography-body2 mn-muted">What an author fills in. Each value is published as a schema.org property, which is what search engines and AI read.</p>
+
+            @foreach (var row in _s.Properties)
+            {
+              var r = row;
+              <div class="df-row" @key="r">
+                <div class="df-row-head">
+                  <button type="button" class="df-row-toggle" aria-expanded="@r.Open" @onclick="() => r.Open = !r.Open">
+                    <span class="df-caret">@(r.Open ? "▾" : "▸")</span>
+                    <strong>@(r.Label.Length > 0 ? r.Label : "(no label)")</strong>
+                    <span class="mn-chip">@KindLabel(r.Kind)@(r.Multiple ? " · list" : "")</span>
+                    @if (r.Required) { <span class="mn-chip df-required">required</span> }
+                    @if (r.SchemaProperty is { Length: > 0 } sp) { <span class="df-schema">schema.org: @sp</span> }
+                    else { <span class="df-schema df-warn-text">no schema.org property</span> }
+                  </button>
+                  <span class="df-row-tools">
+                    <button type="button" class="mud-button-root mud-button-text mud-button-small" aria-label="Move up" title="Move up" @onclick="() => FieldBuilderState.Move(_s.Properties, r, -1)">↑</button>
+                    <button type="button" class="mud-button-root mud-button-text mud-button-small" aria-label="Move down" title="Move down" @onclick="() => FieldBuilderState.Move(_s.Properties, r, 1)">↓</button>
+                    <button type="button" class="mud-button-root mud-button-text mud-button-small" aria-label="Remove" title="Remove" @onclick="() => _s.Properties.Remove(r)">✕</button>
+                  </span>
+                </div>
+                @if (r.Open)
+                {
+                  var id = $"fb-p-{_s.Properties.IndexOf(r)}";
+                  <div class="df-row-body">
+                    <div class="df-grid">
+                      <div class="mud-input-control">
+                        <label class="mud-input-label" for="@($"{id}-label")">Label *</label>
+                        <div class="mud-input-wrapper"><input id="@($"{id}-label")" class="mud-input-slot" @bind="r.Label" @bind:event="oninput" maxlength="120" /></div>
+                      </div>
+                      <div class="mud-input-control">
+                        <label class="mud-input-label" for="@($"{id}-key")">Key *</label>
+                        <div class="mud-input-wrapper"><input id="@($"{id}-key")" class="mud-input-slot" @bind="r.Key" @bind:event="oninput" maxlength="64" /></div>
+                        <div class="mud-input-helper-text">camelCase; content stores the value under it. Keep it once published.</div>
+                      </div>
+                      <div class="mud-input-control">
+                        <label class="mud-input-label" for="@($"{id}-kind")">Kind</label>
+                        <div class="mud-input-wrapper mud-input-wrapper--select">
+                          <select id="@($"{id}-kind")" class="mud-input-slot" @bind="r.Kind">
+                            @foreach (var kind in Enum.GetValues<PropertyKind>())
+                            {
+                              <option value="@kind">@KindLabel(kind)</option>
+                            }
+                          </select>
+                        </div>
+                      </div>
+                      <div class="mud-input-control">
+                        <label class="mud-input-label" for="@($"{id}-schema")">schema.org property</label>
+                        <div class="mud-input-wrapper mud-input-wrapper--select">
+                          <select id="@($"{id}-schema")" class="mud-input-slot" @bind="r.SchemaProperty">
+                            <option value="">(none)</option>
+                            @if (r.SchemaProperty is { Length: > 0 } current && type?.Properties.Contains(current) != true)
+                            {
+                              <option value="@current">@current</option>
+                            }
+                            @foreach (var name in type?.Properties ?? [])
+                            {
+                              <option value="@name">@name</option>
+                            }
+                          </select>
+                        </div>
+                      </div>
+                    </div>
+                    <div class="df-checks">
+                      <label class="mn-check"><input type="checkbox" @bind="r.Required" /> Required</label>
+                      <label class="mn-check"><input type="checkbox" @bind="r.Multiple" /> A list (several values)</label>
+                    </div>
+                    <div class="mud-input-control">
+                      <label class="mud-input-label" for="@($"{id}-help")">Help text</label>
+                      <div class="mud-input-wrapper"><input id="@($"{id}-help")" class="mud-input-slot" @bind="r.HelpText" @bind:event="oninput" maxlength="500" /></div>
+                    </div>
+                    @if (r.IsText)
+                    {
+                      <div class="df-grid">
+                        <div class="mud-input-control">
+                          <label class="mud-input-label" for="@($"{id}-minlen")">Minimum length</label>
+                          <div class="mud-input-wrapper"><input id="@($"{id}-minlen")" type="number" min="0" step="1" class="mud-input-slot" @bind="r.MinLength" /></div>
+                        </div>
+                        <div class="mud-input-control">
+                          <label class="mud-input-label" for="@($"{id}-maxlen")">Maximum length</label>
+                          <div class="mud-input-wrapper"><input id="@($"{id}-maxlen")" type="number" min="1" step="1" class="mud-input-slot" @bind="r.MaxLength" /></div>
+                        </div>
+                      </div>
+                    }
+                    @if (r.IsNumber)
+                    {
+                      <div class="df-grid">
+                        <div class="mud-input-control">
+                          <label class="mud-input-label" for="@($"{id}-min")">Minimum</label>
+                          <div class="mud-input-wrapper"><input id="@($"{id}-min")" type="number" step="any" class="mud-input-slot" @bind="r.Minimum" /></div>
+                        </div>
+                        <div class="mud-input-control">
+                          <label class="mud-input-label" for="@($"{id}-max")">Maximum</label>
+                          <div class="mud-input-wrapper"><input id="@($"{id}-max")" type="number" step="any" class="mud-input-slot" @bind="r.Maximum" /></div>
+                        </div>
+                      </div>
+                    }
+                    @if (r.Kind == PropertyKind.Choice)
+                    {
+                      <div class="mud-input-control">
+                        <label class="mud-input-label" for="@($"{id}-options")">Options *</label>
+                        <div class="mud-input-wrapper"><textarea id="@($"{id}-options")" class="mud-input-slot" rows="3" @bind="r.OptionsText" @bind:event="oninput" placeholder="One per line"></textarea></div>
+                      </div>
+                    }
+                    @if (r.Kind is PropertyKind.Asset or PropertyKind.Keyword or PropertyKind.Term)
+                    {
+                      <p class="mud-typography mud-typography-body2 mn-muted">
+                        Authors pick it with @(r.Kind switch { PropertyKind.Asset => "the Media", PropertyKind.Keyword => "the Keywords", _ => "the Taxonomies" }) module's
+                        picker when it is installed, or type its id.
+                      </p>
+                    }
+                  </div>
+                }
+              </div>
+            }
+
+            <div class="df-suggest">
+              <div class="df-suggest-head">
+                <strong class="mud-typography mud-typography-subtitle2">Add from schema.org @_s.SchemaType</strong>
+                <div class="mud-input-wrapper mud-input-wrapper--dense df-filter">
+                  <input type="search" class="mud-input-slot" aria-label="Filter schema.org properties" placeholder="Filter" @bind="_propertyFilter" @bind:event="oninput" />
+                </div>
+                @if (MissingSuggested.Count > 0)
+                {
+                  <button type="button" class="mud-button-root mud-button-outlined mud-button-primary mud-button-small" @onclick="AddSuggested">
+                    Add the suggested (@MissingSuggested.Count)
+                  </button>
+                }
+                <button type="button" class="mud-button-root mud-button-text mud-button-primary mud-button-small" @onclick="AddCustomProperty">Add a custom value</button>
+              </div>
+              <ul class="df-suggest-list">
+                @foreach (var p in AvailableProperties)
+                {
+                  var prop = p;
+                  <li>
+                    <button type="button" class="mud-button-root mud-button-text mud-button-primary mud-button-small" @onclick="() => AddFromSchema(prop)"
+                            aria-label="@($"Add {prop.Label}")">＋</button>
+                    <span class="df-suggest-name">@prop.Label @if (type?.Suggested.Contains(prop.Name) == true) { <span class="mn-chip df-star" title="Suggested for this type">suggested</span> }</span>
+                    <code>@prop.Name</code>
+                    <span class="mn-chip">@KindLabel(prop.Kind)@(prop.Multiple == true ? " · list" : "")</span>
+                    <span class="mn-muted df-suggest-help">@prop.Description</span>
+                  </li>
+                }
+                @if (!AvailableProperties.Any())
+                {
+                  <li class="mn-muted">Every property of @_s.SchemaType@(string.IsNullOrWhiteSpace(_propertyFilter) ? " is already used." : " matching the filter is already used.")</li>
+                }
+              </ul>
+            </div>
+          </section>
+
+          @* 3. Style *@
+          <section class="mud-paper mud-elevation-1 mn-card df-section">
+            <h2 class="mud-typography mud-typography-h6">3. Style <span class="mn-muted df-count">@_s.Style.Count</span></h2>
+            <p class="mud-typography mud-typography-body2 mn-muted">Choices from the theme's tokens, never free CSS. A responsive one can differ per screen size.</p>
+            @foreach (var row in _s.Style)
+            {
+              var r = row;
+              <div class="df-row" @key="r">
+                <div class="df-row-head">
+                  <button type="button" class="df-row-toggle" aria-expanded="@r.Open" @onclick="() => r.Open = !r.Open">
+                    <span class="df-caret">@(r.Open ? "▾" : "▸")</span>
+                    <strong>@(r.Label.Length > 0 ? r.Label : "(no label)")</strong>
+                    <span class="df-schema">@string.Join(" · ", r.Values)</span>
+                    @if (r.Responsive) { <span class="mn-chip">responsive</span> }
+                  </button>
+                  <span class="df-row-tools">
+                    <button type="button" class="mud-button-root mud-button-text mud-button-small" aria-label="Move up" title="Move up" @onclick="() => FieldBuilderState.Move(_s.Style, r, -1)">↑</button>
+                    <button type="button" class="mud-button-root mud-button-text mud-button-small" aria-label="Move down" title="Move down" @onclick="() => FieldBuilderState.Move(_s.Style, r, 1)">↓</button>
+                    <button type="button" class="mud-button-root mud-button-text mud-button-small" aria-label="Remove" title="Remove" @onclick="() => _s.Style.Remove(r)">✕</button>
+                  </span>
+                </div>
+                @if (r.Open)
+                {
+                  var id = $"fb-s-{_s.Style.IndexOf(r)}";
+                  <div class="df-row-body">
+                    <div class="df-grid">
+                      <div class="mud-input-control">
+                        <label class="mud-input-label" for="@($"{id}-label")">Label *</label>
+                        <div class="mud-input-wrapper"><input id="@($"{id}-label")" class="mud-input-slot" @bind="r.Label" @bind:event="oninput" maxlength="120" /></div>
+                      </div>
+                      <div class="mud-input-control">
+                        <label class="mud-input-label" for="@($"{id}-key")">Key *</label>
+                        <div class="mud-input-wrapper"><input id="@($"{id}-key")" class="mud-input-slot" @bind="r.Key" @bind:event="oninput" maxlength="64" /></div>
+                      </div>
+                    </div>
+                    <div class="mud-input-control">
+                      <label class="mud-input-label" for="@($"{id}-values")">Tokens *</label>
+                      <div class="mud-input-wrapper"><input id="@($"{id}-values")" class="mud-input-slot" @bind="r.ValuesText" @bind:event="oninput" placeholder="full, wide, half" /></div>
+                      <div class="mud-input-helper-text">Separated by commas; letters, digits, "%", ".", "_" and "-". The theme maps each to CSS.</div>
+                    </div>
+                    <div class="df-grid">
+                      <div class="mud-input-control">
+                        <label class="mud-input-label" for="@($"{id}-default")">Default</label>
+                        <div class="mud-input-wrapper mud-input-wrapper--select">
+                          <select id="@($"{id}-default")" class="mud-input-slot" @bind="r.Default">
+                            <option value="">(none)</option>
+                            @foreach (var token in r.Values) { <option value="@token">@token</option> }
+                          </select>
+                        </div>
+                      </div>
+                      <label class="mn-check df-check-cell"><input type="checkbox" @bind="r.Responsive" /> Can differ per screen size</label>
+                    </div>
+                  </div>
+                }
+              </div>
+            }
+            <div class="df-presets">
+              <span class="mud-typography mud-typography-body2 mn-muted">Add:</span>
+              @foreach (var preset in _catalog.StylePresets.Where(p => _s.Style.All(s => s.Key != p.Key)))
+              {
+                var pr = preset;
+                <button type="button" class="mud-button-root mud-button-outlined mud-button-primary mud-button-small" @onclick="() => _s.Style.Add(FieldBuilderState.StyleRow.From(pr))"
+                        title="@string.Join(", ", pr.Values)">＋ @pr.Label</button>
+              }
+              <button type="button" class="mud-button-root mud-button-text mud-button-primary mud-button-small" @onclick="AddCustomStyle">Add a custom style</button>
+            </div>
+          </section>
+
+          @* 4. Children *@
+          <section class="mud-paper mud-elevation-1 mn-card df-section">
+            <h2 class="mud-typography mud-typography-h6">4. What it can contain <span class="mn-muted df-count">@_s.Children.Count</span></h2>
+            <p class="mud-typography mud-typography-body2 mn-muted">
+              The fields an author can add inside it, and how many: a post holds paragraphs and images, a gallery holds images.
+              Publishing pins each to its newest published version.
+            </p>
+            @if (_s.Children.Count > 0)
+            {
+              <table class="df-children">
+                <thead><tr><th scope="col">Field</th><th scope="col">At least</th><th scope="col">At most</th><th scope="col"><span class="mn-sr-only">Remove</span></th></tr></thead>
+                <tbody>
+                  @foreach (var child in _s.Children)
+                  {
+                    var c = child;
+                    var info = _fields.FirstOrDefault(f => f.Key == c.FieldKey);
+                    <tr @key="c">
+                      <td>
+                        <select class="mud-input-slot" aria-label="Child field" @bind="c.FieldKey">
+                          @if (info is null) { <option value="@c.FieldKey">@c.FieldKey (not found)</option> }
+                          @foreach (var f in _fields.Where(f => f.Key != _s.Key && (f.Key == c.FieldKey || _s.Children.All(x => x.FieldKey != f.Key))))
+                          {
+                            <option value="@f.Key">@f.Title (@f.Key)</option>
+                          }
+                        </select>
+                        @if (info is { LatestVersion: 0 }) { <span class="mn-chip df-warn" title="Publish it before publishing this field">not published</span> }
+                      </td>
+                      <td><input type="number" min="0" step="1" class="mud-input-slot df-num" aria-label="At least" @bind="c.Min" /></td>
+                      <td><input type="number" min="1" step="1" class="mud-input-slot df-num" aria-label="At most (empty: any number)" placeholder="any" @bind="c.Max" /></td>
+                      <td><button type="button" class="mud-button-root mud-button-text mud-button-small" aria-label="Remove" @onclick="() => _s.Children.Remove(c)">✕</button></td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
+            }
+            @if (ChildCandidates.Any())
+            {
+              <div class="df-presets">
+                <span class="mud-typography mud-typography-body2 mn-muted">Add:</span>
+                @foreach (var f in ChildCandidates)
+                {
+                  var field = f;
+                  <button type="button" class="mud-button-root mud-button-outlined mud-button-primary mud-button-small"
+                          @onclick="() => _s.Children.Add(new FieldBuilderState.ChildRow { FieldKey = field.Key })" title="@field.Key">＋ @field.Title</button>
+                }
+              </div>
+            }
+            else if (_s.Children.Count == 0)
+            {
+              <p class="mud-typography mud-typography-body2 mn-muted">No other fields yet. Create some, or install the starter library from the Fields page.</p>
+            }
+          </section>
+
+          <details class="mud-paper mud-elevation-1 mn-card df-section">
+            <summary class="mud-typography mud-typography-subtitle2">Advanced</summary>
+            <div class="mud-input-control">
+              <label class="mud-input-label" for="fb-dialog">Editor dialog</label>
+              <div class="mud-input-wrapper"><input id="fb-dialog" class="mud-input-slot" @bind="_s.EditorDialog" maxlength="128" placeholder="Module.Media/edit-image" /></div>
+              <div class="mud-input-helper-text">Another module's dialog that edits this field instead of the generic editor. Empty: the generic one.</div>
+            </div>
+          </details>
+        }
+
+        @if (_tried is not null)
+        {
+          <section class="mud-paper mud-elevation-1 mn-card">
+            <h2 class="mud-typography mud-typography-subtitle2">What the editor returned</h2>
+            <pre class="mn-result">@_tried</pre>
+          </section>
+        }
+      </div>
+
+      <aside class="df-builder-preview" aria-label="Preview">
+        <section class="mud-paper mud-elevation-2 mn-card">
+          <h2 class="mud-typography mud-typography-h6">Preview</h2>
+          <p class="mud-typography mud-typography-body2 mn-muted">The editor as authors will see it. Try it: values you type here are not saved.</p>
+          @* The form updates its own state; these let the page re-render too, so the schema.org data below follows. *@
+          <div class="df-editor df-preview" @oninput="PreviewChanged" @onchange="PreviewChanged" @onclick="PreviewChanged">
+            <ContentEditorForm State="Preview" Issues="_previewIssues" StyleOpen="true" />
+          </div>
+          <div class="mn-row-actions">
+            <button type="button" class="mud-button-root mud-button-outlined mud-button-primary mud-button-small" @onclick="CheckPreview">Check required values</button>
+          </div>
+          <h3 class="mud-typography mud-typography-subtitle2">As schema.org data</h3>
+          <p class="mud-typography mud-typography-body2 mn-muted">What search engines and AI read from it (JSON-LD); ‹…› marks a value not filled in.</p>
+          <pre class="mn-result df-jsonld">@JsonLd()</pre>
+        </section>
+      </aside>
+    </div>
+  }
+</div>
+
+@code {
+  /// <summary>
+  /// The field to open (?key=block.image); none: a new field. A query value, not a path segment: keys contain dots, and
+  /// a host takes a last segment with a dot for a file, so /build/block.image would not reach the app on a reload.
+  /// </summary>
+  [SupplyParameterFromQuery(Name = "key")] public string? FieldKey { get; set; }
+
+  private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web)
+  {
+    WriteIndented = true,
+    Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping, // shown as text
+    Converters = { new JsonStringEnumConverter() },
+    DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
+  };
+
+  private sealed record Family(string Name, IReadOnlyList<SchemaTypeDto> Types);
+
+  private static SchemaOrgCatalogDto? _catalog; // the same for every tenant: loaded once
+  private FieldBuilderState? _s;
+  private FieldDetailDto? _detail;
+  private IReadOnlyList<FieldSummaryDto> _fields = [];
+  private string? _savedSignature;
+  private string _propertyFilter = "";
+  private bool _jsonTab;
+  private string _jsonText = "";
+  private string? _tried;
+
+  private ContentEditorState? _preview;
+  private string? _previewSignature;
+  private Dictionary<string, string> _previewIssues = [];
+
+  private bool IsNew => _detail is null;
+  private bool Dirty => _s is not null && Signature() != _savedSignature;
+
+  protected override async Task OnParametersSetAsync()
+  {
+    if (_s is not null && FieldKey is not null && FieldKey == _detail?.Key) return; // we just created it and moved here
+    _jsonTab = false;
+    _tried = null;
+    await RunAsync(async () =>
+    {
+      _catalog ??= await Api.GetSchemaOrgCatalogAsync();
+      _fields = (await Api.ListFieldsAsync(1, 100, null, null)).Items;
+      if (FieldKey is null)
+      {
+        _detail = null;
+        _s = new FieldBuilderState();
+      }
+      else
+      {
+        _detail = await Api.GetFieldAsync(FieldKey);
+        _s = FieldBuilderState.From(_detail.Key, _detail.Draft);
+      }
+      _savedSignature = Signature();
+      _preview = null;
+    }, toast: false);
+  }
+
+  private string Signature() => _s is null ? "" : _s.Key + "\n" + JsonSerializer.Serialize(_s.ToDraft(), Json);
+
+  // ------------------------------------------------------------------ catalog
+
+  private SchemaTypeDto? TypeOf(string? name) => _catalog?.Types.FirstOrDefault(t => t.Name == name);
+
+  private SchemaOrgProperty? PropertyOf(string name) => _catalog?.Properties.FirstOrDefault(p => p.Name == name);
+
+  /// <summary>The types by family (Article, MediaObject, WebPage, ...); single types together under "Other works".</summary>
+  private IEnumerable<Family> Families
+  {
+    get
+    {
+      var groups = _catalog!.Types.GroupBy(t => t.Path.Count > 1 ? t.Path[1] : t.Name).ToList();
+      foreach (var group in groups.Where(g => g.Count() > 1)) yield return new Family(group.Key, [.. group]);
+      yield return new Family("Other works", [.. groups.Where(g => g.Count() == 1).SelectMany(g => g)]);
+    }
+  }
+
+  /// <summary>The type's properties no value is published as yet, matching the filter; suggested ones first.</summary>
+  private IEnumerable<SchemaOrgProperty> AvailableProperties
+  {
+    get
+    {
+      var type = TypeOf(_s!.SchemaType);
+      if (type is null) return [];
+      var used = _s.Properties.Select(p => p.SchemaProperty).ToHashSet();
+      var filter = _propertyFilter.Trim();
+      return type.Properties
+        .Where(n => !used.Contains(n))
+        .Select(PropertyOf).OfType<SchemaOrgProperty>()
+        .Where(p => filter.Length == 0 || p.Name.Contains(filter, StringComparison.OrdinalIgnoreCase) || p.Label.Contains(filter, StringComparison.OrdinalIgnoreCase))
+        .OrderBy(p => type.Suggested.Contains(p.Name) ? 0 : 1);
+    }
+  }
+
+  private IReadOnlyList<string> MissingSuggested
+  {
+    get
+    {
+      var used = _s!.Properties.Select(p => p.SchemaProperty).ToHashSet();
+      return [.. (TypeOf(_s.SchemaType)?.Suggested ?? []).Where(n => !used.Contains(n))];
+    }
+  }
+
+  private IEnumerable<FieldSummaryDto> ChildCandidates =>
+    _fields.Where(f => f.Key != _s!.Key.Trim() && _s.Children.All(c => c.FieldKey != f.Key));
+
+  /// <summary>A new field takes its type's suggested values; a field with values keeps them (the button adds the rest).</summary>
+  private void TypeChanged()
+  {
+    if (_s!.Properties.Count == 0) AddSuggested();
+    if (_s.Title.Trim().Length == 0) _s.Title = Humanize(_s.SchemaType);
+  }
+
+  private void AddSuggested()
+  {
+    foreach (var name in MissingSuggested)
+      if (PropertyOf(name) is { } p) AddFromSchema(p, open: false);
+  }
+
+  private void AddFromSchema(SchemaOrgProperty p) => AddFromSchema(p, open: true);
+
+  private void AddFromSchema(SchemaOrgProperty p, bool open)
+  {
+    var row = FieldBuilderState.PropertyRow.From(p, FieldBuilderState.FreeKey(p.Name, _s!.Properties.Select(r => r.Key)));
+    row.Open = open;
+    _s.Properties.Add(row);
+  }
+
+  private void AddCustomProperty() => _s!.Properties.Add(new FieldBuilderState.PropertyRow
+  {
+    Key = FieldBuilderState.FreeKey("value", _s.Properties.Select(r => r.Key)),
+    Label = "New value",
+    Open = true
+  });
+
+  private void AddCustomStyle() => _s!.Style.Add(new FieldBuilderState.StyleRow
+  {
+    Key = FieldBuilderState.FreeKey("variant", _s.Style.Select(r => r.Key)),
+    Label = "Variant",
+    ValuesText = "default, alternate",
+    Default = "default",
+    Open = true
+  });
+
+  private static string Humanize(string type) =>
+    string.Concat(type.Select((c, i) => i > 0 && char.IsUpper(c) && !char.IsUpper(type[i - 1]) ? $" {char.ToLowerInvariant(c)}" : c.ToString()));
+
+  private static string KindLabel(PropertyKind kind) => kind switch
+  {
+    PropertyKind.Text => "Text",
+    PropertyKind.RichText => "Formatted text",
+    PropertyKind.Integer => "Whole number",
+    PropertyKind.Decimal => "Number",
+    PropertyKind.Boolean => "Yes / no",
+    PropertyKind.Date => "Date",
+    PropertyKind.DateTime => "Date and time",
+    PropertyKind.Url => "Web address",
+    PropertyKind.Choice => "Choice",
+    PropertyKind.Asset => "Media",
+    PropertyKind.Keyword => "Keyword",
+    PropertyKind.Term => "Taxonomy term",
+    _ => kind.ToString()
+  };
+
+  // ------------------------------------------------------------------ preview
+
+  /// <summary>The preview's form, rebuilt when the draft changes; values typed in it carry over.</summary>
+  private ContentEditorState Preview
+  {
+    get
+    {
+      var snapshot = _s!.ToSnapshot();
+      var signature = JsonSerializer.Serialize(snapshot, Json);
+      if (_preview is null || signature != _previewSignature)
+      {
+        JsonElement? content = _preview is null ? null : JsonSerializer.SerializeToElement(_preview.Content());
+        JsonElement? style = _preview is null ? null : JsonSerializer.SerializeToElement(_preview.Style());
+        _preview = new ContentEditorState(snapshot, content, style);
+        _previewSignature = signature;
+        _previewIssues = [];
+      }
+      return _preview;
+    }
+  }
+
+  private static void PreviewChanged() { } // the event alone re-renders the page
+
+  private void CheckPreview() => _previewIssues = Preview.MissingRequired().ToDictionary(i => i.Path, i => i.Message);
+
+  /// <summary>The preview's values as schema.org JSON-LD, each under its schema.org property; ‹label› where empty.</summary>
+  private string JsonLd()
+  {
+    var state = Preview;
+    var content = state.Content();
+    var ld = new JsonObject { ["@context"] = "https://schema.org", ["@type"] = _s!.SchemaType };
+    foreach (var value in state.Values)
+    {
+      if (value.Property.SchemaProperty is not { Length: > 0 } name) continue;
+      var node = content.TryGetPropertyValue(value.Property.Key, out var v) && v is not null ? v.DeepClone() : JsonValue.Create($"‹{value.Property.Label}›");
+      ld[name] = ld[name] switch
+      {
+        null => node,
+        JsonArray list => Append(list, node),
+        { } single => Append(new JsonArray(single.DeepClone()), node)
+      };
+    }
+    if (_s.Children.Count > 0)
+      ld["hasPart"] = new JsonArray(JsonValue.Create($"‹the contained {string.Join(", ", _s.Children.Select(c => c.FieldKey))}›"));
+    return ld.ToJsonString(Json);
+  }
+
+  private static JsonArray Append(JsonArray list, JsonNode node)
+  {
+    list.Add(node);
+    return list;
+  }
+
+  // ------------------------------------------------------------------ JSON tab
+
+  private void OpenJson()
+  {
+    _jsonText = JsonSerializer.Serialize(_s!.ToDraft(), Json);
+    _jsonTab = true;
+  }
+
+  private void ApplyJson()
+  {
+    try
+    {
+      var draft = JsonSerializer.Deserialize<FieldDraft>(_jsonText, Json);
+      if (draft is null) return;
+      _s = FieldBuilderState.From(_s!.Key, draft);
+      _jsonTab = false;
+      Error = null;
+    }
+    catch (JsonException ex)
+    {
+      Error = $"The draft is not valid JSON: {ex.Message}";
+    }
+  }
+
+  // ------------------------------------------------------------------ saving
+
+  private async Task<bool> SaveAsync()
+  {
+    if (_s is null) return false;
+    var draft = _s.ToDraft();
+    return await RunAsync(async () =>
+    {
+      if (_detail is null)
+      {
+        _detail = await Api.CreateFieldAsync(new NewField { Key = _s.Key.Trim(), Draft = draft });
+        _s = FieldBuilderState.From(_detail.Key, _detail.Draft);
+        _savedSignature = Signature();
+        await MudTail.ToastAsync($"Field {_detail.Key} created.", "success");
+        Nav.NavigateTo($"dynamicfields/build?key={Uri.EscapeDataString(_detail.Key)}", replace: true);
+      }
+      else
+      {
+        _detail = await Api.EditFieldDraftAsync(_detail.Key, new DraftEdit { Version = _detail.Version, Draft = draft });
+        _savedSignature = Signature();
+        await MudTail.ToastAsync($"Draft of {_detail.Key} saved.", "success");
+      }
+    });
+  }
+
+  private async Task PublishAsync()
+  {
+    if (_detail is null) return;
+    if (Dirty && !await SaveAsync()) return;
+    var detail = _detail;
+    await RunAsync(async () =>
+    {
+      var published = await Api.PublishFieldAsync(detail.Key, new PublishRequest { Version = detail.Version });
+      await MudTail.ToastAsync($"{detail.Key} version {published.Field.Version} published.", "success");
+      _detail = await Api.GetFieldAsync(detail.Key);
+    });
+  }
+
+  private async Task DeleteAsync()
+  {
+    if (_detail is not { } detail) return;
+    await RunAsync(async () =>
+    {
+      await Api.DeleteFieldAsync(detail.Key, detail.Version);
+      await MudTail.ToastAsync($"Field {detail.Key} deleted.", "success");
+      Nav.NavigateTo("dynamicfields");
+    });
+  }
+
+  /// <summary>Opens the edit dialog by its id, as another module would, with the last result as its content.</summary>
+  private async Task TryEditorAsync()
+  {
+    if (_detail is not { } detail) return;
+    JsonElement? content = null, style = null;
+    if (_tried is not null)
+    {
+      using var last = JsonDocument.Parse(_tried);
+      content = last.RootElement.GetProperty("content").Clone();
+      style = last.RootElement.GetProperty("style").Clone();
+    }
+    var result = await ModuleDialogs.ShowAsync("Module.DynamicFields/edit-content", new { field = detail.Key, content, style });
+    if (result.Canceled) await MudTail.ToastAsync("The editor was canceled.", "info");
+    else _tried = JsonSerializer.Serialize(result.Data, Json);
+  }
+}

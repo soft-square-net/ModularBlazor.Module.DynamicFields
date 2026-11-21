@@ -2,16 +2,13 @@
 @using System.Text.Json
 @using soft.square.net.Module.DynamicFields.Dialogs
 @inherits DynamicFieldsPageBase
-@inject IModuleDialogs ModuleDialogs
 
 @*
   Dialog "Module.DynamicFields/edit-content": edits one content node with the form its field defines. For any module
   (IModuleDialogs.ShowAsync); the Contents editor opens it for each node of a post.
     parameters  { field: "block.image", version?: number (0 or none: the newest), content?: {...}, style?: {...} }
     result      { field, version, content, style }   checked by the server before the dialog closes
-  Asset, Keyword and Term values get a "Choose" button when the user's catalog has the picker dialog of that module:
-  Module.Media/pick-asset, Module.Keywords/pick-concepts, Module.Taxonomies/pick-terms, each called with
-  { multiple, selected: [ids] } and answering { ids: [...] }. Without one, the id is typed.
+  The form itself is ContentEditorForm, which the field builder also shows as its preview.
 *@
 
 <div class="mud-dialog-content df-editor">
@@ -21,159 +18,7 @@
   }
   else
   {
-    <p class="mud-typography mud-typography-body2 mn-muted df-editor-type">
-      @_state.Field.Title · schema.org <strong>@_state.Field.SchemaType</strong> · @_state.Field.Key v@(_state.Field.Version)
-    </p>
-    @if (_state.Field.Description is { Length: > 0 } description)
-    {
-      <p class="mud-typography mud-typography-body2">@description</p>
-    }
-
-    @foreach (var value in _state.Values)
-    {
-      var p = value.Property;
-      var id = $"df-{_uid}-{p.Key}";
-      <div class="mud-input-control df-value @(IssueFor($"/content/{p.Key}") is not null ? "mud-input-error" : "")">
-        @if (p.Kind == PropertyKind.Boolean && !value.Multiple)
-        {
-          <label class="mn-check"><input id="@id" type="checkbox" @bind="value.Flag" /> @p.Label</label>
-        }
-        else
-        {
-          <label class="mud-input-label" for="@id">@p.Label@(value.Required ? " *" : "")</label>
-          @if (value.IsChoice && value.Multiple)
-          {
-            <div class="df-choices" id="@id">
-              @foreach (var option in p.Options ?? [])
-              {
-                <label class="mn-check">
-                  <input type="checkbox" checked="@value.Items.Contains(option)" @onchange="e => Toggle(value, option, e.Value is true)" /> @option
-                </label>
-              }
-            </div>
-          }
-          else if (value.Multiple)
-          {
-            @for (var i = 0; i < value.Items.Count; i++)
-            {
-              var index = i;
-              <div class="df-item">
-                <div class="mud-input-wrapper mud-input-wrapper--dense">
-                  <input id="@(index == 0 ? id : null)" class="mud-input-slot" type="@InputType(p.Kind)" step="@Step(p.Kind)" maxlength="@p.MaxLength"
-                         value="@value.Items[index]" @onchange="e => value.Items[index] = e.Value?.ToString() ?? string.Empty" placeholder="@Placeholder(p.Kind)" />
-                </div>
-                <button type="button" class="mud-button-root mud-button-text mud-button-small" aria-label="Remove" @onclick="() => value.Items.RemoveAt(index)">✕</button>
-              </div>
-            }
-            <div class="df-item-actions">
-              <button type="button" class="mud-button-root mud-button-text mud-button-primary mud-button-small" @onclick="() => value.Items.Add(string.Empty)">Add</button>
-              @if (Picker(p.Kind) is { } picker && ModuleDialogs.IsAvailable(picker))
-              {
-                <button type="button" class="mud-button-root mud-button-text mud-button-primary mud-button-small" @onclick="() => PickAsync(value, picker)">Choose…</button>
-              }
-            </div>
-          }
-          else if (value.IsChoice)
-          {
-            <div class="mud-input-wrapper mud-input-wrapper--select">
-              <select id="@id" class="mud-input-slot" @bind="value.Text">
-                <option value="">@(value.Required ? "Choose…" : "—")</option>
-                @foreach (var option in p.Options ?? [])
-                {
-                  <option value="@option">@option</option>
-                }
-              </select>
-            </div>
-          }
-          else if (p.Kind == PropertyKind.RichText)
-          {
-            <div class="mud-input-wrapper">
-              <textarea id="@id" class="mud-input-slot mn-body" rows="6" maxlength="@p.MaxLength" @bind="value.Text"></textarea>
-            </div>
-          }
-          else
-          {
-            <div class="df-item">
-              <div class="mud-input-wrapper">
-                <input id="@id" class="mud-input-slot" type="@InputType(p.Kind)" step="@Step(p.Kind)" maxlength="@p.MaxLength"
-                       min="@p.Minimum" max="@p.Maximum" @bind="value.Text" placeholder="@Placeholder(p.Kind)" />
-              </div>
-              @if (Picker(p.Kind) is { } picker && ModuleDialogs.IsAvailable(picker))
-              {
-                <button type="button" class="mud-button-root mud-button-text mud-button-primary mud-button-small" @onclick="() => PickAsync(value, picker)">Choose…</button>
-              }
-            </div>
-          }
-        }
-        @if (IssueFor($"/content/{p.Key}") is { } issue)
-        {
-          <div class="mud-input-helper-text mn-error" role="alert">@issue</div>
-        }
-        else if (Help(p) is { Length: > 0 } help)
-        {
-          <div class="mud-input-helper-text">@help</div>
-        }
-      </div>
-    }
-
-    @if (_state.Styles.Count > 0)
-    {
-      <details class="df-style" open="@(_styleOpen)">
-        <summary class="mud-typography mud-typography-subtitle2">Style</summary>
-        @foreach (var style in _state.Styles)
-        {
-          var s = style.Property;
-          var id = $"df-{_uid}-style-{s.Key}";
-          <div class="mud-input-control df-value">
-            <label class="mud-input-label" for="@id">@s.Label</label>
-            <div class="mud-input-wrapper mud-input-wrapper--select">
-              <select id="@id" class="mud-input-slot" @bind="style.Base">
-                <option value="">@(s.Default is { } d ? $"Default ({d})" : "Default")</option>
-                @foreach (var token in s.Values)
-                {
-                  <option value="@token">@token</option>
-                }
-              </select>
-            </div>
-            @if (style.Responsive)
-            {
-              <label class="mn-check"><input type="checkbox" @bind="style.ByBreakpoint" /> Different on wider screens</label>
-              @if (style.ByBreakpoint)
-              {
-                <div class="df-breakpoints">
-                  @foreach (var point in ContentEditorState.StyleState.Breakpoints)
-                  {
-                    <label class="df-breakpoint">
-                      <span>@point</span>
-                      <select class="mud-input-slot" value="@style.PerBreakpoint.GetValueOrDefault(point, "")"
-                              @onchange="e => style.PerBreakpoint[point] = e.Value?.ToString() ?? string.Empty">
-                        <option value="">as smaller</option>
-                        @foreach (var token in s.Values)
-                        {
-                          <option value="@token">@token</option>
-                        }
-                      </select>
-                    </label>
-                  }
-                </div>
-              }
-            }
-            @if (IssueFor($"/style/{s.Key}") is { } issue)
-            {
-              <div class="mud-input-helper-text mn-error" role="alert">@issue</div>
-            }
-          </div>
-        }
-      </details>
-    }
-
-    @if (_otherIssues.Count > 0 || Error is not null)
-    {
-      <div class="mn-error" role="alert">
-        @if (Error is not null) { <p>@Error</p> }
-        @foreach (var issue in _otherIssues) { <p>@issue</p> }
-      </div>
-    }
+    <ContentEditorForm State="_state" Issues="_issues" OtherIssues="OtherIssues" StyleOpen="_styleOpen" />
   }
 </div>
 <div class="mud-dialog-actions">
@@ -188,14 +33,12 @@
   /// <summary>The caller's parameters (web JSON).</summary>
   private sealed record Parameters(string? Field, int? Version, JsonElement? Content, JsonElement? Style);
 
-  /// <summary>The ids a picker dialog answers with.</summary>
-  private sealed record Picked(IReadOnlyList<string>? Ids);
-
-  private readonly string _uid = Guid.NewGuid().ToString("n")[..8];
   private ContentEditorState? _state;
   private Dictionary<string, string> _issues = [];
   private List<string> _otherIssues = [];
   private bool _styleOpen;
+
+  private IReadOnlyList<string> OtherIssues => Error is null ? _otherIssues : [Error, .. _otherIssues];
 
   protected override async Task OnAfterRenderAsync(bool firstRender)
   {
@@ -224,8 +67,7 @@
     _otherIssues = [];
 
     // Required values first, without a round trip; then the server's check, which is the one that counts.
-    foreach (var value in _state.Values.Where(v => v.Required && !v.HasValue))
-      _issues[$"/content/{value.Property.Key}"] = $"{value.Property.Label} is required.";
+    foreach (var (path, message) in _state.MissingRequired()) _issues[path] = message;
     if (_issues.Count > 0) return;
 
     ContentReport? report = null;
@@ -242,7 +84,7 @@
     {
       foreach (var issue in report.Issues)
       {
-        var at = OwnerPath(issue.Path);
+        var at = _state.OwnerPath(issue.Path);
         if (at is null) _otherIssues.Add($"{issue.Path}: {issue.Message}");
         else _issues.TryAdd(at, issue.Message);
         if (issue.Path.StartsWith("/style", StringComparison.Ordinal)) _styleOpen = true;
@@ -251,81 +93,5 @@
     }
 
     Dialog.Close(new { field = _state.Field.Key, version = _state.Field.Version, content, style });
-  }
-
-  /// <summary>The value or style an issue's path belongs to: /content/topics/1 → /content/topics.</summary>
-  private string? OwnerPath(string path)
-  {
-    var parts = path.Split('/', StringSplitOptions.RemoveEmptyEntries);
-    if (parts.Length < 2 || parts[0] is not ("content" or "style")) return null;
-    var key = parts[1].Replace("~1", "/").Replace("~0", "~");
-    var known = parts[0] == "content" ? _state!.Values.Any(v => v.Property.Key == key) : _state!.Styles.Any(s => s.Property.Key == key);
-    return known ? $"/{parts[0]}/{key}" : null;
-  }
-
-  private string? IssueFor(string path) => _issues.GetValueOrDefault(path);
-
-  private static void Toggle(ContentEditorState.ValueState value, string option, bool on)
-  {
-    value.Items.Remove(option);
-    if (on) value.Items.Add(option);
-  }
-
-  private async Task PickAsync(ContentEditorState.ValueState value, string picker)
-  {
-    var selected = value.Multiple ? value.Items.Where(i => i.Trim().Length > 0).ToArray() : value.Text.Trim().Length > 0 ? [value.Text.Trim()] : [];
-    var result = await ModuleDialogs.ShowAsync(picker, new { multiple = value.Multiple, selected });
-    if (result.Canceled || result.As<Picked>()?.Ids is not { } ids) return;
-
-    if (value.Multiple)
-    {
-      value.Items.Clear();
-      value.Items.AddRange(ids);
-      if (value.Items.Count == 0) value.Items.Add("");
-    }
-    else value.Text = ids.FirstOrDefault() ?? "";
-  }
-
-  private static string? Picker(PropertyKind kind) => kind switch
-  {
-    PropertyKind.Asset => "Module.Media/pick-asset",
-    PropertyKind.Keyword => "Module.Keywords/pick-concepts",
-    PropertyKind.Term => "Module.Taxonomies/pick-terms",
-    _ => null
-  };
-
-  private static string InputType(PropertyKind kind) => kind switch
-  {
-    PropertyKind.Integer or PropertyKind.Decimal => "number",
-    PropertyKind.Date => "date",
-    PropertyKind.DateTime => "datetime-local",
-    PropertyKind.Url => "url",
-    _ => "text"
-  };
-
-  private static string? Step(PropertyKind kind) => kind switch
-  {
-    PropertyKind.Integer => "1",
-    PropertyKind.Decimal => "any",
-    _ => null
-  };
-
-  private static string? Placeholder(PropertyKind kind) => kind switch
-  {
-    PropertyKind.Url => "https://…",
-    PropertyKind.Asset => "asset id",
-    PropertyKind.Keyword => "keyword id",
-    PropertyKind.Term => "term id",
-    _ => null
-  };
-
-  private static string? Help(FieldProperty p)
-  {
-    var parts = new List<string>();
-    if (p.HelpText is { Length: > 0 } help) parts.Add(help);
-    if (p.MaxLength is { } max) parts.Add($"Up to {max} characters.");
-    if (p.Minimum is { } min && p.Maximum is { } top) parts.Add($"{min} to {top}.");
-    if (p.SchemaProperty is { Length: > 0 } schema) parts.Add($"schema.org: {schema}");
-    return string.Join(" ", parts);
   }
 }

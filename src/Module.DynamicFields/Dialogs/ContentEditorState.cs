@@ -41,6 +41,20 @@ public sealed class ContentEditorState
         return style;
     }
 
+    /// <summary>The required values left empty, as (owner path, message): checked before asking the server.</summary>
+    public IEnumerable<(string Path, string Message)> MissingRequired() =>
+        Values.Where(v => v.Required && !v.HasValue).Select(v => ($"/content/{v.Property.Key}", $"{v.Property.Label} is required."));
+
+    /// <summary>The value or style an issue's path belongs to (/content/topics/1 → /content/topics), or null.</summary>
+    public string? OwnerPath(string path)
+    {
+        var parts = path.Split('/', StringSplitOptions.RemoveEmptyEntries);
+        if (parts.Length < 2 || parts[0] is not ("content" or "style")) return null;
+        var key = parts[1].Replace("~1", "/").Replace("~0", "~");
+        var known = parts[0] == "content" ? Values.Any(v => v.Property.Key == key) : Styles.Any(s => s.Property.Key == key);
+        return known ? $"/{parts[0]}/{key}" : null;
+    }
+
     private static JsonElement? Read(JsonElement? obj, string key) =>
         obj is { ValueKind: JsonValueKind.Object } o && o.TryGetProperty(key, out var v) && v.ValueKind != JsonValueKind.Null ? v : null;
 
