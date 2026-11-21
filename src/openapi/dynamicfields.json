@@ -2,7 +2,7 @@
   "openapi": "3.1.1",
   "info": {
     "title": "DynamicFields",
-    "description": "DynamicFields: notes per tenant (the template's example; replace with the module's own features).",
+    "description": "DynamicFields: reusable, versioned content fields (schema.org types, values, style tokens, allowed children) and validation of content trees made with them.",
     "version": "0.1.0"
   },
   "servers": [
@@ -11,13 +11,13 @@
     }
   ],
   "paths": {
-    "/api/dynamicfields/notes": {
+    "/api/dynamicfields/fields": {
       "get": {
         "tags": [
-          "Notes"
+          "Fields"
         ],
-        "summary": "One page of notes, newest first.",
-        "operationId": "DynamicFields_ListNotes",
+        "summary": "One page of fields by key; canBeRoot=true lists the fields a post can be made of.",
+        "operationId": "DynamicFields_ListFields",
         "parameters": [
           {
             "name": "page",
@@ -36,6 +36,20 @@
               "format": "int32",
               "default": 20
             }
+          },
+          {
+            "name": "search",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "canBeRoot",
+            "in": "query",
+            "schema": {
+              "type": "boolean"
+            }
           }
         ],
         "responses": {
@@ -44,7 +58,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/NotePage"
+                  "$ref": "#/components/schemas/FieldPage"
                 }
               }
             }
@@ -53,14 +67,14 @@
       },
       "post": {
         "tags": [
-          "Notes"
+          "Fields"
         ],
-        "operationId": "DynamicFields_CreateNote",
+        "operationId": "DynamicFields_CreateField",
         "requestBody": {
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/NewNote"
+                "$ref": "#/components/schemas/NewField"
               }
             }
           },
@@ -72,7 +86,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/NoteDto"
+                  "$ref": "#/components/schemas/FieldDetailDto"
                 }
               }
             }
@@ -80,39 +94,20 @@
         }
       }
     },
-    "/api/dynamicfields/notes/search": {
+    "/api/dynamicfields/fields/{key}": {
       "get": {
         "tags": [
-          "Notes"
+          "Fields"
         ],
-        "summary": "Notes whose title or body contains the text (at least 2 characters), ignoring case.",
-        "operationId": "DynamicFields_SearchNotes",
+        "operationId": "DynamicFields_GetField",
         "parameters": [
           {
-            "name": "text",
-            "in": "query",
+            "name": "key",
+            "in": "path",
             "required": true,
             "schema": {
               "type": "string"
             }
-          },
-          {
-            "name": "page",
-            "in": "query",
-            "schema": {
-              "type": "integer",
-              "format": "int32",
-              "default": 1
-            }
-          },
-          {
-            "name": "pageSize",
-            "in": "query",
-            "schema": {
-              "type": "integer",
-              "format": "int32",
-              "default": 20
-            }
           }
         ],
         "responses": {
@@ -121,79 +116,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/NotePage"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/dynamicfields/notes/{id}": {
-      "get": {
-        "tags": [
-          "Notes"
-        ],
-        "operationId": "DynamicFields_GetNote",
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "pattern": "^-?(?:0|[1-9]\\d*)$",
-              "type": "integer",
-              "format": "int32"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "OK",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/NoteDto"
-                }
-              }
-            }
-          }
-        }
-      },
-      "put": {
-        "tags": [
-          "Notes"
-        ],
-        "operationId": "DynamicFields_EditNote",
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "pattern": "^-?(?:0|[1-9]\\d*)$",
-              "type": "integer",
-              "format": "int32"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/NoteEdit"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "OK",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/NoteDto"
+                  "$ref": "#/components/schemas/FieldDetailDto"
                 }
               }
             }
@@ -202,18 +125,17 @@
       },
       "delete": {
         "tags": [
-          "Notes"
+          "Fields"
         ],
-        "operationId": "DynamicFields_DeleteNote",
+        "summary": "Delete a field that was never published.",
+        "operationId": "DynamicFields_DeleteField",
         "parameters": [
           {
-            "name": "id",
+            "name": "key",
             "in": "path",
             "required": true,
             "schema": {
-              "pattern": "^-?(?:0|[1-9]\\d*)$",
-              "type": "integer",
-              "format": "int32"
+              "type": "string"
             }
           },
           {
@@ -232,21 +154,264 @@
           }
         }
       }
+    },
+    "/api/dynamicfields/fields/{key}/versions/{number}": {
+      "get": {
+        "tags": [
+          "Fields"
+        ],
+        "summary": "A published field version; number 0 is the newest.",
+        "operationId": "DynamicFields_GetFieldVersion",
+        "parameters": [
+          {
+            "name": "key",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "number",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FieldVersionDto"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/dynamicfields/fields/{key}/draft": {
+      "put": {
+        "tags": [
+          "Fields"
+        ],
+        "operationId": "DynamicFields_EditFieldDraft",
+        "parameters": [
+          {
+            "name": "key",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DraftEdit"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FieldDetailDto"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/dynamicfields/fields/{key}/publish": {
+      "post": {
+        "tags": [
+          "Fields"
+        ],
+        "summary": "Publish the draft as the next version; each child is pinned to its newest published version.",
+        "operationId": "DynamicFields_PublishField",
+        "parameters": [
+          {
+            "name": "key",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PublishRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FieldVersionDto"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/dynamicfields/content/validate": {
+      "post": {
+        "tags": [
+          "Content"
+        ],
+        "summary": "Check a content tree against its published fields; every problem comes back with a JSON Pointer.",
+        "operationId": "DynamicFields_ValidateContent",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ContentTree"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ContentReport"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/dynamicfields/content/validate-node": {
+      "post": {
+        "tags": [
+          "Content"
+        ],
+        "summary": "Check one node's content and style against its field version (what the edit dialog checks).",
+        "operationId": "DynamicFields_ValidateNode",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NodeValues"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ContentReport"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
     "schemas": {
-      "NewNote": {
+      "ChildRule": {
         "required": [
-          "title",
-          "body"
+          "fieldKey"
         ],
         "type": "object",
         "properties": {
-          "title": {
+          "fieldKey": {
             "type": "string"
           },
-          "body": {
+          "min": {
+            "type": "integer",
+            "format": "int32",
+            "default": 0
+          },
+          "max": {
+            "type": [
+              "null",
+              "integer"
+            ],
+            "format": "int32"
+          }
+        }
+      },
+      "ContentIssue": {
+        "required": [
+          "path",
+          "message"
+        ],
+        "type": "object",
+        "properties": {
+          "path": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          }
+        }
+      },
+      "ContentNode": {
+        "required": [
+          "field",
+          "fieldVersion",
+          "content",
+          "style"
+        ],
+        "type": "object",
+        "properties": {
+          "field": {
+            "type": "string"
+          },
+          "fieldVersion": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "content": {
+            "$ref": "#/components/schemas/JsonElement"
+          },
+          "style": {
+            "$ref": "#/components/schemas/JsonElement"
+          },
+          "children": {
+            "type": [
+              "null",
+              "array"
+            ],
+            "items": {
+              "$ref": "#/components/schemas/ContentNode"
+            }
+          },
+          "nodeId": {
             "type": [
               "null",
               "string"
@@ -254,11 +419,58 @@
           }
         }
       },
-      "NoteDto": {
+      "ContentReport": {
         "required": [
-          "id",
-          "title",
-          "body",
+          "valid",
+          "issues"
+        ],
+        "type": "object",
+        "properties": {
+          "valid": {
+            "type": "boolean"
+          },
+          "issues": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ContentIssue"
+            }
+          }
+        }
+      },
+      "ContentTree": {
+        "required": [
+          "root"
+        ],
+        "type": "object",
+        "properties": {
+          "root": {
+            "$ref": "#/components/schemas/ContentNode"
+          }
+        }
+      },
+      "DraftEdit": {
+        "required": [
+          "version",
+          "draft"
+        ],
+        "type": "object",
+        "properties": {
+          "version": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "draft": {
+            "$ref": "#/components/schemas/FieldDraft"
+          }
+        }
+      },
+      "FieldDetailDto": {
+        "required": [
+          "key",
+          "draft",
+          "latestVersion",
+          "hasDraftChanges",
+          "versions",
           "createdBy",
           "createdAt",
           "updatedAt",
@@ -266,15 +478,24 @@
         ],
         "type": "object",
         "properties": {
-          "id": {
+          "key": {
+            "type": "string"
+          },
+          "draft": {
+            "$ref": "#/components/schemas/FieldDraft"
+          },
+          "latestVersion": {
             "type": "integer",
             "format": "int32"
           },
-          "title": {
-            "type": "string"
+          "hasDraftChanges": {
+            "type": "boolean"
           },
-          "body": {
-            "type": "string"
+          "versions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/FieldVersionInfo"
+            }
           },
           "createdBy": {
             "type": "string"
@@ -293,22 +514,51 @@
           }
         }
       },
-      "NoteEdit": {
+      "FieldDraft": {
         "required": [
-          "version",
           "title",
-          "body"
+          "schemaType",
+          "canBeRoot",
+          "properties",
+          "style",
+          "children"
         ],
         "type": "object",
         "properties": {
-          "version": {
-            "type": "integer",
-            "format": "int32"
-          },
           "title": {
             "type": "string"
           },
-          "body": {
+          "schemaType": {
+            "type": "string"
+          },
+          "canBeRoot": {
+            "type": "boolean"
+          },
+          "properties": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/FieldProperty"
+            }
+          },
+          "style": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/StyleProperty"
+            }
+          },
+          "children": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ChildRule"
+            }
+          },
+          "description": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "editorDialog": {
             "type": [
               "null",
               "string"
@@ -316,7 +566,7 @@
           }
         }
       },
-      "NotePage": {
+      "FieldPage": {
         "required": [
           "items",
           "page",
@@ -328,7 +578,7 @@
           "items": {
             "type": "array",
             "items": {
-              "$ref": "#/components/schemas/NoteDto"
+              "$ref": "#/components/schemas/FieldSummaryDto"
             }
           },
           "page": {
@@ -342,6 +592,366 @@
           "total": {
             "type": "integer",
             "format": "int32"
+          }
+        }
+      },
+      "FieldProperty": {
+        "required": [
+          "key",
+          "label",
+          "kind"
+        ],
+        "type": "object",
+        "properties": {
+          "key": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/PropertyKind"
+          },
+          "required": {
+            "type": "boolean",
+            "default": false
+          },
+          "multiple": {
+            "type": "boolean",
+            "default": false
+          },
+          "schemaProperty": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "helpText": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "minLength": {
+            "type": [
+              "null",
+              "integer"
+            ],
+            "format": "int32"
+          },
+          "maxLength": {
+            "type": [
+              "null",
+              "integer"
+            ],
+            "format": "int32"
+          },
+          "minimum": {
+            "type": [
+              "null",
+              "number"
+            ],
+            "format": "double"
+          },
+          "maximum": {
+            "type": [
+              "null",
+              "number"
+            ],
+            "format": "double"
+          },
+          "options": {
+            "type": [
+              "null",
+              "array"
+            ],
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "FieldSnapshot": {
+        "required": [
+          "key",
+          "version",
+          "title",
+          "description",
+          "schemaType",
+          "canBeRoot",
+          "properties",
+          "style",
+          "children",
+          "editorDialog"
+        ],
+        "type": "object",
+        "properties": {
+          "key": {
+            "type": "string"
+          },
+          "version": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "title": {
+            "type": "string"
+          },
+          "description": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "schemaType": {
+            "type": "string"
+          },
+          "canBeRoot": {
+            "type": "boolean"
+          },
+          "properties": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/FieldProperty"
+            }
+          },
+          "style": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/StyleProperty"
+            }
+          },
+          "children": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PinnedChild"
+            }
+          },
+          "editorDialog": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
+      "FieldSummaryDto": {
+        "required": [
+          "key",
+          "title",
+          "schemaType",
+          "canBeRoot",
+          "latestVersion",
+          "hasDraftChanges",
+          "updatedAt",
+          "version"
+        ],
+        "type": "object",
+        "properties": {
+          "key": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "schemaType": {
+            "type": "string"
+          },
+          "canBeRoot": {
+            "type": "boolean"
+          },
+          "latestVersion": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "hasDraftChanges": {
+            "type": "boolean"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "version": {
+            "type": "integer",
+            "format": "int32"
+          }
+        }
+      },
+      "FieldVersionDto": {
+        "required": [
+          "field",
+          "publishedAt",
+          "publishedBy",
+          "contentSchema",
+          "styleSchema"
+        ],
+        "type": "object",
+        "properties": {
+          "field": {
+            "$ref": "#/components/schemas/FieldSnapshot"
+          },
+          "publishedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "publishedBy": {
+            "type": "string"
+          },
+          "contentSchema": {
+            "$ref": "#/components/schemas/JsonElement"
+          },
+          "styleSchema": {
+            "$ref": "#/components/schemas/JsonElement"
+          }
+        }
+      },
+      "FieldVersionInfo": {
+        "required": [
+          "number",
+          "publishedAt",
+          "publishedBy"
+        ],
+        "type": "object",
+        "properties": {
+          "number": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "publishedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "publishedBy": {
+            "type": "string"
+          }
+        }
+      },
+      "JsonElement": { },
+      "NewField": {
+        "required": [
+          "key",
+          "draft"
+        ],
+        "type": "object",
+        "properties": {
+          "key": {
+            "type": "string"
+          },
+          "draft": {
+            "$ref": "#/components/schemas/FieldDraft"
+          }
+        }
+      },
+      "NodeValues": {
+        "required": [
+          "field",
+          "fieldVersion",
+          "content",
+          "style"
+        ],
+        "type": "object",
+        "properties": {
+          "field": {
+            "type": "string"
+          },
+          "fieldVersion": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "content": {
+            "$ref": "#/components/schemas/JsonElement"
+          },
+          "style": {
+            "$ref": "#/components/schemas/JsonElement"
+          }
+        }
+      },
+      "PinnedChild": {
+        "required": [
+          "fieldKey",
+          "version",
+          "min",
+          "max"
+        ],
+        "type": "object",
+        "properties": {
+          "fieldKey": {
+            "type": "string"
+          },
+          "version": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "min": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "max": {
+            "type": [
+              "null",
+              "integer"
+            ],
+            "format": "int32"
+          }
+        }
+      },
+      "PropertyKind": {
+        "enum": [
+          "Text",
+          "RichText",
+          "Integer",
+          "Decimal",
+          "Boolean",
+          "Date",
+          "DateTime",
+          "Url",
+          "Choice",
+          "Asset",
+          "Keyword",
+          "Term"
+        ],
+        "type": "string"
+      },
+      "PublishRequest": {
+        "required": [
+          "version"
+        ],
+        "type": "object",
+        "properties": {
+          "version": {
+            "type": "integer",
+            "format": "int32"
+          }
+        }
+      },
+      "StyleProperty": {
+        "required": [
+          "key",
+          "label",
+          "values"
+        ],
+        "type": "object",
+        "properties": {
+          "key": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "values": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "responsive": {
+            "type": "boolean",
+            "default": false
+          },
+          "default": {
+            "type": [
+              "null",
+              "string"
+            ]
           }
         }
       }
@@ -377,7 +987,10 @@
   ],
   "tags": [
     {
-      "name": "Notes"
+      "name": "Fields"
+    },
+    {
+      "name": "Content"
     }
   ]
 }

@@ -7,11 +7,11 @@ namespace soft.square.net.WebApi.Modules.DynamicFields.UseCases;
 public static class DynamicFieldsPermissions
 {
     public const string Read = "dynamicfields.read";
-    public const string Write = "dynamicfields.write";
+    public const string Manage = "dynamicfields.manage";
 
     public static IReadOnlyList<PermissionDefinition> All { get; } =
     [
-        new(Read, "Read and search notes."),
-        new(Write, "Create, edit and delete notes.")
+        new(Read, "Read fields and their published versions, and validate content against them."),
+        new(Manage, "Create, change, publish and delete fields.")
     ];
 }

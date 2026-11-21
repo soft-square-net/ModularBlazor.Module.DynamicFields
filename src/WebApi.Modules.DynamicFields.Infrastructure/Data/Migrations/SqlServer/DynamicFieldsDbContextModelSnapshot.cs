@@ -23,7 +23,7 @@ namespace soft.square.net.WebApi.Modules.DynamicFields.Infrastructure.Data.Migra
 
             SqlServerModelBuilderExtensions.UseIdentityColumns(modelBuilder);
 
-            modelBuilder.Entity("soft.square.net.WebApi.Modules.DynamicFields.Core.NoteAggregate.Note", b =>
+            modelBuilder.Entity("soft.square.net.WebApi.Modules.DynamicFields.Core.FieldAggregate.FieldDefinition", b =>
                 {
                     b.Property<int>("Id")
                         .ValueGeneratedOnAdd()
@@ -31,10 +31,8 @@ namespace soft.square.net.WebApi.Modules.DynamicFields.Infrastructure.Data.Migra
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
 
-                    b.Property<string>("Body")
-                        .IsRequired()
-                        .HasMaxLength(2000)
-                        .HasColumnType("nvarchar(2000)");
+                    b.Property<bool>("CanBeRoot")
+                        .HasColumnType("bit");
 
                     b.Property<DateTimeOffset>("CreatedAt")
                         .HasColumnType("datetimeoffset");
@@ -44,6 +42,26 @@ namespace soft.square.net.WebApi.Modules.DynamicFields.Infrastructure.Data.Migra
                         .HasMaxLength(128)
                         .HasColumnType("nvarchar(128)");
 
+                    b.Property<string>("DraftJson")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<bool>("HasDraftChanges")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("Key")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<int>("LatestVersion")
+                        .HasColumnType("int");
+
+                    b.Property<string>("SchemaType")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
                     b.Property<string>("TenantId")
                         .IsRequired()
                         .HasMaxLength(64)
@@ -51,8 +69,8 @@ namespace soft.square.net.WebApi.Modules.DynamicFields.Infrastructure.Data.Migra
 
                     b.Property<string>("Title")
                         .IsRequired()
-                        .HasMaxLength(200)
-                        .HasColumnType("nvarchar(200)");
+                        .HasMaxLength(120)
+                        .HasColumnType("nvarchar(120)");
 
                     b.Property<DateTimeOffset>("UpdatedAt")
                         .HasColumnType("datetimeoffset");
@@ -65,7 +83,58 @@ namespace soft.square.net.WebApi.Modules.DynamicFields.Infrastructure.Data.Migra
 
                     b.HasIndex("TenantId");
 
-                    b.ToTable("notes", "dynamicfields");
+                    b.HasIndex("TenantId", "Key")
+                        .IsUnique();
+
+                    b.ToTable("fields", "dynamicfields");
+                });
+
+            modelBuilder.Entity("soft.square.net.WebApi.Modules.DynamicFields.Core.FieldAggregate.FieldVersion", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<int?>("FieldId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("Number")
+                        .HasColumnType("int");
+
+                    b.Property<DateTimeOffset>("PublishedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("PublishedBy")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.Property<string>("SnapshotJson")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("FieldId", "Number")
+                        .IsUnique()
+                        .HasFilter("[FieldId] IS NOT NULL");
+
+                    b.ToTable("field_versions", "dynamicfields");
+                });
+
+            modelBuilder.Entity("soft.square.net.WebApi.Modules.DynamicFields.Core.FieldAggregate.FieldVersion", b =>
+                {
+                    b.HasOne("soft.square.net.WebApi.Modules.DynamicFields.Core.FieldAggregate.FieldDefinition", null)
+                        .WithMany("Versions")
+                        .HasForeignKey("FieldId")
+                        .OnDelete(DeleteBehavior.Cascade);
+                });
+
+            modelBuilder.Entity("soft.square.net.WebApi.Modules.DynamicFields.Core.FieldAggregate.FieldDefinition", b =>
+                {
+                    b.Navigation("Versions");
                 });
 #pragma warning restore 612, 618
         }

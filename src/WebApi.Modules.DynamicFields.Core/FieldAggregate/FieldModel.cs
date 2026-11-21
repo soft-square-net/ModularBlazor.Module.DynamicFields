@@ -1,0 +1,120 @@
+using System.Text.Json.Serialization;
+
+namespace soft.square.net.WebApi.Modules.DynamicFields.Core.FieldAggregate;
+
+/// <summary>
+/// The kind of one content value: its JSON shape, its checks and the control an editor shows for it. Travels and is
+/// stored by name, so a new kind never changes the meaning of an old one.
+/// </summary>
+[JsonConverter(typeof(JsonStringEnumConverter<PropertyKind>))]
+public enum PropertyKind
+{
+    /// <summary>A line of plain text (JSON string).</summary>
+    Text,
+
+    /// <summary>Formatted text (JSON string holding the editor's markup; the consumer sanitizes it).</summary>
+    RichText,
+
+    /// <summary>A whole number (JSON integer).</summary>
+    Integer,
+
+    /// <summary>A number with decimals (JSON number).</summary>
+    Decimal,
+
+    /// <summary>Yes or no (JSON boolean).</summary>
+    Boolean,
+
+    /// <summary>A calendar date, <c>yyyy-MM-dd</c> (JSON string).</summary>
+    Date,
+
+    /// <summary>A date and time with its offset, ISO 8601 (JSON string).</summary>
+    DateTime,
+
+    /// <summary>An absolute http or https address (JSON string).</summary>
+    Url,
+
+    /// <summary>One of the property's <see cref="FieldProperty.Options"/> (JSON string).</summary>
+    Choice,
+
+    /// <summary>The id of a media asset (JSON string); the media module owns the asset.</summary>
+    Asset,
+
+    /// <summary>The id of a Keywords concept (JSON string); maps to schema.org about, mentions or keywords.</summary>
+    Keyword,
+
+    /// <summary>The id of a Taxonomies term (JSON string).</summary>
+    Term
+}
+
+/// <summary>
+/// One value of a field's content. <see cref="Key"/> is the JSON property name and never changes once published (a
+/// label can). <see cref="SchemaProperty"/> is the schema.org property the value is published as (headline, caption,
+/// contentUrl, ...), which is what makes the content readable by search engines and AI.
+/// </summary>
+public sealed record FieldProperty(
+    string Key,
+    string Label,
+    PropertyKind Kind,
+    bool Required = false,
+    bool Multiple = false,
+    string? SchemaProperty = null,
+    string? HelpText = null,
+    int? MinLength = null,
+    int? MaxLength = null,
+    decimal? Minimum = null,
+    decimal? Maximum = null,
+    IReadOnlyList<string>? Options = null);
+
+/// <summary>
+/// One style value of a field: a choice from <see cref="Values"/> (theme tokens such as "wide", "md", "start"), never
+/// free CSS. A <see cref="Responsive"/> one may also be given per breakpoint:
+/// <c>{ "base": "full", "md": "half" }</c>.
+/// </summary>
+public sealed record StyleProperty(
+    string Key,
+    string Label,
+    IReadOnlyList<string> Values,
+    bool Responsive = false,
+    string? Default = null);
+
+/// <summary>A field the parent may contain as a child node, and how many of it (<see cref="Max"/> null: no limit).</summary>
+public sealed record ChildRule(string FieldKey, int Min = 0, int? Max = null);
+
+/// <summary>
+/// What an author edits: everything about a field except its key. Publishing freezes it as a numbered
+/// <see cref="FieldSnapshot"/>.
+/// </summary>
+/// <param name="SchemaType">The schema.org type of content made with this field (NewsArticle, ImageObject, ...).</param>
+/// <param name="CanBeRoot">Whether a post can be made of this field (a root node, with no parent).</param>
+/// <param name="EditorDialog">
+/// Another module's dialog id that edits this field's content instead of the generic editor, e.g.
+/// <c>Module.Media/edit-image</c>. It gets and returns <c>{ content, style }</c>.
+/// </param>
+public sealed record FieldDraft(
+    string Title,
+    string SchemaType,
+    bool CanBeRoot,
+    IReadOnlyList<FieldProperty> Properties,
+    IReadOnlyList<StyleProperty> Style,
+    IReadOnlyList<ChildRule> Children,
+    string? Description = null,
+    string? EditorDialog = null);
+
+/// <summary>A child rule as published: the child field pinned to the version that was current then.</summary>
+public sealed record PinnedChild(string FieldKey, int Version, int Min, int? Max);
+
+/// <summary>
+/// A published field version: immutable, so content made with it always validates the same way. Children are pinned
+/// to exact versions; a newer child version reaches a parent only when the parent is published again.
+/// </summary>
+public sealed record FieldSnapshot(
+    string Key,
+    int Version,
+    string Title,
+    string? Description,
+    string SchemaType,
+    bool CanBeRoot,
+    IReadOnlyList<FieldProperty> Properties,
+    IReadOnlyList<StyleProperty> Style,
+    IReadOnlyList<PinnedChild> Children,
+    string? EditorDialog);

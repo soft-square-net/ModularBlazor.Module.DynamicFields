@@ -1,6 +1,6 @@
 using Microsoft.Extensions.DependencyInjection;
 using soft.square.net.WebApi.Modules.DynamicFields.UseCases.Behaviors;
-using soft.square.net.WebApi.Modules.DynamicFields.UseCases.Notes.Create;
+using soft.square.net.WebApi.Modules.DynamicFields.UseCases.Fields.Create;
 
 namespace soft.square.net.WebApi.Modules.DynamicFields.Web.Configurations;
 
@@ -22,7 +22,7 @@ public static class MediatorConfig
             // platform's TenantDbContext (IDomainEventHandler, in the same save), not by the mediator.
             options.Assemblies =
             [
-                typeof(CreateNoteCommand)   // UseCases
+                typeof(CreateFieldCommand)   // UseCases
             ];
 
             // Order matters: the first runs outermost.

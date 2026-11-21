@@ -5,4 +5,4 @@ using soft.square.net.ModularBlazor.Abstractions;
 // tenant), and the page shows its answer. The API is tenant-bound, so sign in to a tenant to use it.
 [assembly: ClientModule(Name = "DynamicFields", Layout = "default", RoutePrefixes = new[] { "dynamicfields" },
     Dependencies = new[] { "WebApi.Modules.DynamicFields.Client" }, Styles = new[] { "dynamicfields.css" },
-    NavTitle = "DynamicFields", NavHref = "dynamicfields", NavOrder = 50)]
+    NavTitle = "Fields", NavHref = "dynamicfields", NavOrder = 50)]

@@ -13,3 +13,21 @@
 .mn-body { min-height: 8em; resize: vertical; font: inherit; }
 .mn-row-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
 .mn-pager { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; justify-content: flex-end; margin-top: 12px; }
+.mn-code { font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 0.875rem; min-height: 20em; }
+.mn-check { display: inline-flex; gap: 6px; align-items: center; padding-block: 8px; }
+.mn-chip { display: inline-block; margin-inline-start: 8px; padding: 0 8px; border-radius: 999px; border: 1px solid var(--mud-palette-lines-default, currentColor); font-size: 0.8125rem; }
+/* The edit-content dialog (Module.DynamicFields/edit-content): shown on other modules' pages too, so only df- classes. */
+.df-editor { display: grid; gap: 4px; max-height: 70vh; overflow-y: auto; }
+.df-editor-type { margin: 0 0 8px; }
+.df-value { margin-bottom: 8px; }
+.df-item { display: flex; gap: 8px; align-items: center; }
+.df-item > .mud-input-wrapper { flex: 1; }
+.df-item + .df-item { margin-top: 6px; }
+.df-item-actions { display: flex; gap: 8px; margin-top: 4px; }
+.df-choices { display: flex; flex-wrap: wrap; gap: 4px 16px; }
+.df-style { margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--mud-palette-lines-default, rgba(127,127,127,.3)); }
+.df-style summary { cursor: pointer; margin-bottom: 8px; }
+.df-breakpoints { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 8px; margin-top: 4px; }
+.df-breakpoint { display: grid; gap: 2px; font-size: 0.8125rem; }
+.df-breakpoint select { padding: 6px 8px; border: 1px solid var(--mud-palette-lines-inputs, rgba(127,127,127,.5)); border-radius: 4px; background: transparent; color: inherit; }
+.mn-result { margin: 12px 0 0; padding: 12px; overflow-x: auto; border-radius: 6px; background: var(--mud-palette-background-gray, rgba(127,127,127,.12)); font-size: 0.8125rem; }

@@ -2,7 +2,7 @@ using System.Reflection;
 using Microsoft.EntityFrameworkCore;
 using soft.square.net.WebApi.Contracts.Tenancy;
 using soft.square.net.WebApi.Data;
-using soft.square.net.WebApi.Modules.DynamicFields.Core.NoteAggregate;
+using soft.square.net.WebApi.Modules.DynamicFields.Core.FieldAggregate;
 
 namespace soft.square.net.WebApi.Modules.DynamicFields.Infrastructure.Data;
 
@@ -16,8 +16,17 @@ public sealed class DynamicFieldsDbContext(DbContextOptions<DynamicFieldsDbConte
 {
     protected override string Schema => "dynamicfields";
 
-    public DbSet<Note> Notes => Set<Note>();
+    public DbSet<FieldDefinition> Fields => Set<FieldDefinition>();
 
-    protected override void ConfigureModel(ModelBuilder modelBuilder) =>
+    protected override void ConfigureModel(ModelBuilder modelBuilder)
+    {
         modelBuilder.ApplyConfigurationsFromAssembly(Assembly.GetExecutingAssembly());
+
+        if (Database.ProviderName == "Oracle.EntityFrameworkCore")
+        {
+            // Oracle maps an unbounded string to NVARCHAR2(2000); a field with many properties is larger.
+            modelBuilder.Entity<FieldDefinition>().Property(f => f.DraftJson).HasColumnType("NCLOB");
+            modelBuilder.Entity<FieldVersion>().Property(v => v.SnapshotJson).HasColumnType("NCLOB");
+        }
+    }
 }

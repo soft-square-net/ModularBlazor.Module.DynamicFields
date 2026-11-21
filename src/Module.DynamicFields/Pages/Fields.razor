@@ -1,0 +1,289 @@
+@page "/dynamicfields"
+@using System.Text.Json
+@using System.Text.Json.Serialization
+@inherits DynamicFieldsPageBase
+@inject IModuleDialogs ModuleDialogs
+
+@*
+  The tenant's fields (GET /api/dynamicfields/fields), with search and a "posts only" filter. A row opens the field: its
+  versions, and its draft as JSON to change (PUT .../draft), publish (POST .../publish) or, if never published, delete.
+  An admin tool until the field editor exists: the content editor's dialogs come with the Contents editor.
+*@
+
+<PageTitle>Fields</PageTitle>
+
+<div class="mud-container mn-page">
+  <header class="mn-header">
+    <div>
+      <h1 class="mud-typography mud-typography-h4">Fields</h1>
+      <p class="mud-typography mud-typography-body1 mn-muted">
+        The kinds of content posts are made of. Each field is one schema.org type, with its values, its style choices and
+        the fields it may contain. Reading needs dynamicfields.read; changing and publishing, dynamicfields.manage.
+      </p>
+    </div>
+    <form class="mn-actions" @onsubmit="SearchAsync" @onsubmit:preventDefault>
+      <div class="mud-input-control mn-inline">
+        <label class="mud-input-label" for="df-search">Search</label>
+        <div class="mud-input-wrapper mud-input-wrapper--dense">
+          <input id="df-search" type="search" class="mud-input-slot" @bind="_search" placeholder="key or title" />
+        </div>
+      </div>
+      <label class="mn-check">
+        <input type="checkbox" @bind="_postsOnly" @bind:after="SearchAsync" /> Posts only
+      </label>
+      <button type="submit" class="mud-button-root mud-button-outlined mud-button-primary mud-button-medium" disabled="@Busy">Search</button>
+      <button type="button" class="mud-button-root mud-button-filled mud-button-primary mud-button-medium" @onclick="OpenCreate" disabled="@Busy">New field</button>
+    </form>
+  </header>
+
+  @if (Error is not null)
+  {
+    <p class="mud-typography mud-typography-body2 mn-error" role="alert">@Error</p>
+  }
+
+  @if (_form is not null)
+  {
+    <section class="mud-paper mud-elevation-2 mn-card">
+      <h2 class="mud-typography mud-typography-h6">@(_form.Detail is null ? "New field" : _form.Key)</h2>
+      @if (_form.Detail is { } detail)
+      {
+        <p class="mud-typography mud-typography-body2 mn-muted">
+          @(detail.LatestVersion == 0 ? "Never published." : $"Published: version {detail.LatestVersion}.")
+          @(detail.HasDraftChanges ? " The draft has changes to publish." : "")
+          @foreach (var v in detail.Versions.OrderByDescending(v => v.Number))
+          {
+            <span class="mn-chip">v@(v.Number) · @When(v.PublishedAt)</span>
+          }
+        </p>
+      }
+      <form class="mn-form" @onsubmit="SaveAsync" @onsubmit:preventDefault>
+        @if (_form.Detail is null)
+        {
+          <div class="mud-input-control">
+            <label class="mud-input-label" for="df-key">Key</label>
+            <div class="mud-input-wrapper">
+              <input id="df-key" class="mud-input-slot" @bind="_form.Key" required maxlength="64" placeholder="block.image" />
+            </div>
+            <div class="mud-input-helper-text">Lowercase words joined by "." or "-". Content refers to it; it never changes.</div>
+          </div>
+        }
+        <div class="mud-input-control">
+          <label class="mud-input-label" for="df-draft">Draft (JSON)</label>
+          <div class="mud-input-wrapper">
+            <textarea id="df-draft" class="mud-input-slot mn-body mn-code" rows="18" spellcheck="false" @bind="_form.Json"></textarea>
+          </div>
+          <div class="mud-input-helper-text">
+            title, schemaType (a schema.org type), canBeRoot, properties [{ key, label, kind, required, multiple, schemaProperty, … }],
+            style [{ key, label, values, responsive, default }], children [{ fieldKey, min, max }], editorDialog.
+          </div>
+        </div>
+        <div class="mn-row-actions">
+          <button type="submit" class="mud-button-root mud-button-filled mud-button-primary mud-button-medium" disabled="@Busy">
+            @(_form.Detail is null ? "Create" : "Save draft")
+          </button>
+          @if (_form.Detail is { } d)
+          {
+            <button type="button" class="mud-button-root mud-button-outlined mud-button-primary mud-button-medium" @onclick="PublishAsync"
+                    disabled="@(Busy || !d.HasDraftChanges)">Publish version @(d.LatestVersion + 1)</button>
+            <button type="button" class="mud-button-root mud-button-outlined mud-button-primary mud-button-medium" @onclick="TryEditorAsync"
+                    disabled="@(Busy || d.LatestVersion == 0)" title="Opens the edit-content dialog with the newest version">Try the editor</button>
+            @if (d.LatestVersion == 0)
+            {
+              <button type="button" class="mud-button-root mud-button-outlined mud-button-error mud-button-medium" @onclick="DeleteAsync" disabled="@Busy">Delete</button>
+            }
+          }
+          <button type="button" class="mud-button-root mud-button-text mud-button-surface mud-button-medium" @onclick="() => _form = null">Close</button>
+        </div>
+      </form>
+      @if (_tried is not null)
+      {
+        <pre class="mn-result" aria-label="What the editor returned">@_tried</pre>
+      }
+    </section>
+  }
+
+  <section class="mud-paper mud-elevation-1 mn-card">
+    <MudTailDataTable @ref="_table" RowKey="key" Columns="Columns" OnRowClick="OpenAsync" EmptyText="No fields yet." />
+    <div class="mn-pager">
+      <span class="mud-typography mud-typography-body2 mn-muted">@PagerText</span>
+      <button type="button" class="mud-button-root mud-button-outlined mud-button-primary mud-button-small" @onclick="() => GoToAsync(_page - 1)" disabled="@(Busy || _page <= 1)">Previous</button>
+      <button type="button" class="mud-button-root mud-button-outlined mud-button-primary mud-button-small" @onclick="() => GoToAsync(_page + 1)" disabled="@(Busy || _page >= LastPage)">Next</button>
+    </div>
+  </section>
+</div>
+
+@code {
+  private const int PageSize = 20;
+
+  private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web)
+  {
+    WriteIndented = true,
+    Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping, // shown as text, so "+" stays "+"
+    Converters = { new JsonStringEnumConverter() },
+    DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
+  };
+
+  private const string Template = """
+    {
+      "title": "Image",
+      "schemaType": "ImageObject",
+      "canBeRoot": false,
+      "properties": [
+        { "key": "asset", "label": "Image", "kind": "Asset", "required": true, "schemaProperty": "contentUrl" },
+        { "key": "caption", "label": "Caption", "kind": "Text", "schemaProperty": "caption", "maxLength": 300 }
+      ],
+      "style": [
+        { "key": "width", "label": "Width", "values": ["full", "half", "third"], "responsive": true, "default": "full" }
+      ],
+      "children": []
+    }
+    """;
+
+  private sealed class FieldForm
+  {
+    public string Key { get; set; } = "";
+    public string Json { get; set; } = "";
+    public FieldDetailDto? Detail { get; set; }
+  }
+
+  private static readonly IReadOnlyList<object> Columns =
+  [
+    new { key = "key", title = "Key" },
+    new { key = "title", title = "Title" },
+    new { key = "type", title = "schema.org type" },
+    new { key = "root", title = "Post", width = "80px" },
+    new { key = "version", title = "Version", type = "number", width = "100px" },
+    new { key = "draft", title = "Draft", width = "120px" },
+  ];
+
+  private MudTailDataTable? _table;
+  private int _page = 1;
+  private int _total;
+  private string _search = "";
+  private bool _postsOnly;
+  private FieldForm? _form;
+
+  private int LastPage => Math.Max(1, (_total + PageSize - 1) / PageSize);
+
+  private string PagerText => _total == 0 ? "" : $"Page {_page} of {LastPage} ({_total} fields)";
+
+  protected override async Task OnAfterRenderAsync(bool firstRender)
+  {
+    if (firstRender) await LoadAsync();
+  }
+
+  private async Task LoadAsync()
+  {
+    await RunAsync(async () =>
+    {
+      var search = string.IsNullOrWhiteSpace(_search) ? null : _search.Trim();
+      var result = await Api.ListFieldsAsync(_page, PageSize, search, _postsOnly ? true : null);
+      _total = result.Total;
+      if (_table is not null) await _table.SetDataAsync(result.Items.Select(ToRow).ToList());
+    });
+  }
+
+  private static object ToRow(FieldSummaryDto f) => new
+  {
+    key = f.Key,
+    title = f.Title,
+    type = f.SchemaType,
+    root = f.CanBeRoot ? "yes" : "",
+    version = f.LatestVersion == 0 ? "—" : f.LatestVersion.ToString(),
+    draft = f.HasDraftChanges ? "changed" : "",
+  };
+
+  private async Task GoToAsync(int page)
+  {
+    _page = Math.Clamp(page, 1, LastPage);
+    await LoadAsync();
+  }
+
+  private async Task SearchAsync()
+  {
+    _page = 1;
+    await LoadAsync();
+  }
+
+  private void OpenCreate() => _form = new FieldForm { Json = Template };
+
+  private async Task OpenAsync(string key)
+  {
+    await RunAsync(async () => _form = ToForm(await Api.GetFieldAsync(key)));
+  }
+
+  private static FieldForm ToForm(FieldDetailDto detail) =>
+    new() { Key = detail.Key, Detail = detail, Json = JsonSerializer.Serialize(detail.Draft, Json) };
+
+  private async Task SaveAsync()
+  {
+    if (_form is null) return;
+    FieldDraft? draft;
+    try { draft = JsonSerializer.Deserialize<FieldDraft>(_form.Json, Json); }
+    catch (JsonException ex)
+    {
+      Error = $"The draft is not valid JSON: {ex.Message}";
+      return;
+    }
+    if (draft is null) return;
+
+    var form = _form;
+    await RunAsync(async () =>
+    {
+      if (form.Detail is { } detail)
+      {
+        _form = ToForm(await Api.EditFieldDraftAsync(detail.Key, new DraftEdit { Version = detail.Version, Draft = draft }));
+        await MudTail.ToastAsync($"Draft of {detail.Key} saved.", "success");
+      }
+      else
+      {
+        _form = ToForm(await Api.CreateFieldAsync(new NewField { Key = form.Key.Trim(), Draft = draft }));
+        await MudTail.ToastAsync($"Field {_form.Key} created.", "success");
+      }
+    }, then: LoadAsync);
+  }
+
+  private async Task PublishAsync()
+  {
+    if (_form?.Detail is not { } detail) return;
+    await RunAsync(async () =>
+    {
+      var published = await Api.PublishFieldAsync(detail.Key, new PublishRequest { Version = detail.Version });
+      await MudTail.ToastAsync($"{detail.Key} version {published.Field.Version} published.", "success");
+      _form = ToForm(await Api.GetFieldAsync(detail.Key));
+    }, then: LoadAsync);
+  }
+
+  private string? _tried; // what the editor returned last, as JSON
+
+  /// <summary>Opens the edit-content dialog by its id, as another module would, with the last result as its content.</summary>
+  private async Task TryEditorAsync()
+  {
+    if (_form?.Detail is not { } detail) return;
+    JsonElement? content = null, style = null;
+    if (_tried is not null)
+    {
+      using var last = JsonDocument.Parse(_tried);
+      if (last.RootElement.TryGetProperty("field", out var f) && f.GetString() == detail.Key)
+      {
+        content = last.RootElement.GetProperty("content").Clone();
+        style = last.RootElement.GetProperty("style").Clone();
+      }
+    }
+
+    var result = await ModuleDialogs.ShowAsync("Module.DynamicFields/edit-content", new { field = detail.Key, content, style });
+    _tried = result.Canceled ? _tried : JsonSerializer.Serialize(result.Data, Json);
+    if (result.Canceled) await MudTail.ToastAsync("The editor was canceled.", "info");
+  }
+
+  private async Task DeleteAsync()
+  {
+    if (_form?.Detail is not { } detail) return;
+    await RunAsync(async () =>
+    {
+      await Api.DeleteFieldAsync(detail.Key, detail.Version);
+      await MudTail.ToastAsync($"Field {detail.Key} deleted.", "success");
+      _form = null;
+    }, then: LoadAsync);
+  }
+}
