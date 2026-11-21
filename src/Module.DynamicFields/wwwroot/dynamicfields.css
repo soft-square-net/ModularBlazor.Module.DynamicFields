@@ -13,3 +13,6 @@
 .mn-body { min-height: 8em; resize: vertical; font: inherit; }
 .mn-row-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
 .mn-pager { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; justify-content: flex-end; margin-top: 12px; }
+.mn-code { font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 0.875rem; min-height: 20em; }
+.mn-check { display: inline-flex; gap: 6px; align-items: center; padding-block: 8px; }
+.mn-chip { display: inline-block; margin-inline-start: 8px; padding: 0 8px; border-radius: 999px; border: 1px solid var(--mud-palette-lines-default, currentColor); font-size: 0.8125rem; }

@@ -9,24 +9,29 @@ ModularBlazor runtime module is: an assembly set that the host loads into a coll
 ```
 src/
   WebApi.Modules.DynamicFields.Core/            Core       (ModuleLayer Domain)
-    NoteAggregate/Note.cs                    the aggregate: state, rules (DomainException), private setters
-    NoteAggregate/Specifications/            NoteByIdSpec, NotesPageSpec, NoteSearchSpec
+    FieldAggregate/FieldDefinition.cs        the aggregate (draft, publish) and FieldVersion (an immutable snapshot)
+    FieldAggregate/FieldModel.cs             FieldDraft, FieldProperty, StyleProperty, ChildRule, FieldSnapshot
+    FieldAggregate/FieldRules.cs             the draft's rules (DomainException); SchemaOrg.cs: the allowed types
+    FieldAggregate/FieldJsonSchema.cs        a version as JSON Schema 2020-12 (content and style)
+    FieldAggregate/Specifications/           FieldByKeySpec, FieldDetailSpec, FieldsByKeysSpec, FieldsPageSpec
+    ContentValidation/                       ContentNode and ContentTreeValidator: a post's tree against its fields
   WebApi.Modules.DynamicFields.UseCases/        UseCases   (ModuleLayer Application)
     DynamicFieldsPermissions.cs DynamicFieldsOptions.cs ResultExtensions.cs
     Behaviors/LoggingBehavior.cs             Mediator pipeline behaviour
-    Notes/NoteDto.cs                         DTOs and helpers the note use cases share
-    Notes/Create/CreateNote.cs               CreateNoteCommand and CreateNoteHandler
-    Notes/Edit/  Notes/Delete/  Notes/GetById/  Notes/List/  Notes/Search/
+    Fields/FieldDtos.cs                      DTOs and helpers the field use cases share
+    Fields/Create/CreateField.cs             CreateFieldCommand and CreateFieldHandler
+    Fields/EditDraft/  Fields/Publish/  Fields/Get/  Fields/GetVersion/  Fields/List/  Fields/Delete/
+    Content/Validate/ValidateContent.cs      ValidateContentQuery: resolves the versions a tree names, then validates
   WebApi.Modules.DynamicFields.Infrastructure/  Infrastructure
     Data/DynamicFieldsDbContext.cs              a TenantDbContext (schema "dynamicfields", tenant filter, domain events)
-    Data/Config/NoteConfiguration.cs         one IEntityTypeConfiguration per entity
+    Data/Config/FieldConfiguration.cs        one IEntityTypeConfiguration per entity (fields, field_versions)
     Data/Migrations/<Provider>/              one migration set per database engine
     InfrastructureServiceExtensions.cs       AddInfrastructureServices()
   WebApi.Modules.DynamicFields.Web/             Web: the entry assembly and composition root (ModuleLayer Module)
     DynamicFieldsModule.cs                      IRuntimeModule: manifest, permissions, settings, ConfigureServices
     Configurations/                          ServiceConfigs (all registrations), MediatorConfig
     DynamicFieldsRoutes.cs                      the only ICarterModule: the route table
-    Notes/                                   one endpoint class per route (REPR)
+    Fields/FieldEndpoints.cs Content/        one endpoint class per route (REPR)
     Extensions/                              ResultExtensions (Result -> HTTP), DynamicFieldsProblemsFilter
 tests/
   WebApi.Modules.DynamicFields.UnitTests/       Core rules; UseCases handlers with NSubstitute
@@ -79,19 +84,19 @@ Core  <-  UseCases  <-  Web
 
 ## Adding a feature
 
-A new action on notes, say "pin":
+A new action on fields, say "deprecate":
 
-1. **Core**: the rule on the aggregate, `Note.Pin(now)`, throwing `DomainException` when not allowed. A new query
-   shape is a specification in `NoteAggregate/Specifications`.
-2. **UseCases**: a folder `Notes/Pin/` with `PinNoteCommand` (`ICommand<Result<NoteDto>>`) and `PinNoteHandler`.
-   Add a permission to `DynamicFieldsPermissions` if it needs a new one.
-3. **Web**: `Notes/Pin.cs`, an `IEndpoint` with a static `HandleAsync` that sends the command and returns
-   `Results<Ok<T>, ProblemHttpResult>`; then one line in `DynamicFieldsRoutes`. Name it `DynamicFields_PinNote`: generated
-   clients take their method names from it.
+1. **Core**: the rule on the aggregate, `FieldDefinition.Deprecate(now)`, throwing `DomainException` when not allowed.
+   A new query shape is a specification in `FieldAggregate/Specifications`.
+2. **UseCases**: a folder `Fields/Deprecate/` with `DeprecateFieldCommand` (`ICommand<Result<FieldDetailDto>>`) and
+   `DeprecateFieldHandler`. Add a permission to `DynamicFieldsPermissions` if it needs a new one.
+3. **Web**: a `Deprecate` class in `Fields/FieldEndpoints.cs`, an `IEndpoint` with a static `HandleAsync` that sends the
+   command and returns `Results<Ok<T>, ProblemHttpResult>`; then one line in `DynamicFieldsRoutes`. Name it
+   `DynamicFields_DeprecateField`: generated clients take their method names from it.
 4. **Infrastructure**, if the model changed: the mapping in `Data/Config`, then a migration for every provider (see
    the README) and `dotnet ef migrations has-pending-model-changes` per provider.
 5. **Client**: export the OpenAPI document again (README, "Building") and build: `DynamicFieldsClient` gains
-   `PinNoteAsync`. Use it from a page in `Module.DynamicFields` (pages inherit `DynamicFieldsPageBase`: `Api`, `RunAsync`,
+   `DeprecateFieldAsync`. Use it from a page in `Module.DynamicFields` (pages inherit `DynamicFieldsPageBase`: `Api`, `RunAsync`,
    readable errors).
 6. **Tests**: the rule in `UnitTests/Core`, the handler in `UnitTests/UseCases`, a new mapping or specification in
    `IntegrationTests`.
@@ -101,9 +106,3 @@ and a configuration in Infrastructure, and a migration.
 
 Handlers are found by the Mediator source generator at compile time; there is nothing to register. Services that
 several handlers share are registered in `ServiceConfigs`.
-
-## Replacing the example
-
-Delete `Core/NoteAggregate`, `UseCases/Notes`, `Web/Notes`, `Infrastructure/Data/Config/NoteConfiguration.cs`, the
-`Notes` DbSet, the migrations and the note tests; add your aggregate the way the notes are built, update the
-permissions, the manifest's description and settings, and add an initial migration per provider.

@@ -23,7 +23,7 @@ namespace soft.square.net.WebApi.Modules.DynamicFields.Infrastructure.Data.Migra
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
-            modelBuilder.Entity("soft.square.net.WebApi.Modules.DynamicFields.Core.NoteAggregate.Note", b =>
+            modelBuilder.Entity("soft.square.net.WebApi.Modules.DynamicFields.Core.FieldAggregate.FieldDefinition", b =>
                 {
                     b.Property<int>("Id")
                         .ValueGeneratedOnAdd()
@@ -31,10 +31,8 @@ namespace soft.square.net.WebApi.Modules.DynamicFields.Infrastructure.Data.Migra
 
                     NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
 
-                    b.Property<string>("Body")
-                        .IsRequired()
-                        .HasMaxLength(2000)
-                        .HasColumnType("character varying(2000)");
+                    b.Property<bool>("CanBeRoot")
+                        .HasColumnType("boolean");
 
                     b.Property<DateTimeOffset>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
@@ -44,6 +42,26 @@ namespace soft.square.net.WebApi.Modules.DynamicFields.Infrastructure.Data.Migra
                         .HasMaxLength(128)
                         .HasColumnType("character varying(128)");
 
+                    b.Property<string>("DraftJson")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<bool>("HasDraftChanges")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("Key")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<int>("LatestVersion")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("SchemaType")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
                     b.Property<string>("TenantId")
                         .IsRequired()
                         .HasMaxLength(64)
@@ -51,8 +69,8 @@ namespace soft.square.net.WebApi.Modules.DynamicFields.Infrastructure.Data.Migra
 
                     b.Property<string>("Title")
                         .IsRequired()
-                        .HasMaxLength(200)
-                        .HasColumnType("character varying(200)");
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)");
 
                     b.Property<DateTimeOffset>("UpdatedAt")
                         .HasColumnType("timestamp with time zone");
@@ -65,7 +83,57 @@ namespace soft.square.net.WebApi.Modules.DynamicFields.Infrastructure.Data.Migra
 
                     b.HasIndex("TenantId");
 
-                    b.ToTable("notes", "dynamicfields");
+                    b.HasIndex("TenantId", "Key")
+                        .IsUnique();
+
+                    b.ToTable("fields", "dynamicfields");
+                });
+
+            modelBuilder.Entity("soft.square.net.WebApi.Modules.DynamicFields.Core.FieldAggregate.FieldVersion", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<int?>("FieldId")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("Number")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTimeOffset>("PublishedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("PublishedBy")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)");
+
+                    b.Property<string>("SnapshotJson")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("FieldId", "Number")
+                        .IsUnique();
+
+                    b.ToTable("field_versions", "dynamicfields");
+                });
+
+            modelBuilder.Entity("soft.square.net.WebApi.Modules.DynamicFields.Core.FieldAggregate.FieldVersion", b =>
+                {
+                    b.HasOne("soft.square.net.WebApi.Modules.DynamicFields.Core.FieldAggregate.FieldDefinition", null)
+                        .WithMany("Versions")
+                        .HasForeignKey("FieldId")
+                        .OnDelete(DeleteBehavior.Cascade);
+                });
+
+            modelBuilder.Entity("soft.square.net.WebApi.Modules.DynamicFields.Core.FieldAggregate.FieldDefinition", b =>
+                {
+                    b.Navigation("Versions");
                 });
 #pragma warning restore 612, 618
         }
