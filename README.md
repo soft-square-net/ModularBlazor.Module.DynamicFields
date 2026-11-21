@@ -49,6 +49,7 @@ The module's id, route prefix and database schema are `dynamicfields`; its permi
 | `POST /fields/{key}/publish` `{ version }` | `dynamicfields.manage` | `PublishFieldCommand`: the next version; 409 if a child field is not published yet |
 | `DELETE /fields/{key}?version=` | `dynamicfields.manage` | `DeleteFieldCommand`: 204; 409 once the field has been published |
 | `POST /content/validate` `{ root }` | `dynamicfields.read` | `ValidateContentQuery`: `{ valid, issues: [{ path, message }] }`, paths as JSON Pointers |
+| `POST /content/validate-node` `{ field, fieldVersion, content, style }` | `dynamicfields.read` | `ValidateNodeQuery`: one node's values and style (no children), the same report; 404 if the version is not published |
 
 A broken rule in a draft (a bad key, an unknown schema.org type, a choice without options, ...) is a 409 with the rule
 as its detail. Content validation checks, at every node: the field version is published; the root can be a post; the
@@ -63,6 +64,26 @@ In the Blazor client, the **Fields** menu entry opens the Fields page (`/dynamic
 a search box and a "posts only" filter. A row opens the field with its versions and its draft as JSON, to save,
 publish, or delete while never published. It is an admin tool until the field editor exists. It calls the API through
 `DynamicFieldsClient`, so what a user may do is what the API allows; its errors (403, 409, ...) show as messages.
+"Try the editor" opens the edit dialog on the newest version and shows what it returns.
+
+### The edit dialog
+
+`Module.DynamicFields/edit-content` is the one generic editor for a node's values and style, opened by id through
+`IModuleDialogs` (any client module can open it; a field's `editorDialog` names another to use instead):
+
+```csharp
+var result = await ModuleDialogs.ShowAsync("Module.DynamicFields/edit-content",
+    new { field = "block.image", version = 2, content, style }); // version, content and style are optional
+if (!result.Canceled) { /* result.Data: { field, version, content, style } */ }
+```
+
+It loads the field version (the newest when none is given) and builds one control per value: text, a textarea for rich
+text, number, checkbox, date, date and time, URL, a select (or checkboxes when multiple) for a choice, and a list with
+Add and remove for multiple values. Style values are selects of the field's tokens; a responsive one can be set per
+breakpoint. Save checks required values, then asks `POST /content/validate-node`, and shows each issue under its value.
+Asset, Keyword and Term values are ids typed by hand, with a Pick button when `Module.Media/pick-asset`,
+`Module.Keywords/pick-concepts` or `Module.Taxonomies/pick-terms` is installed (parameters `{ multiple, selected }`,
+result `{ ids }`). Rich text is a plain textarea for now.
 
 ## Building
 

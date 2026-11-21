@@ -307,6 +307,37 @@
           }
         }
       }
+    },
+    "/api/dynamicfields/content/validate-node": {
+      "post": {
+        "tags": [
+          "Content"
+        ],
+        "summary": "Check one node's content and style against its field version (what the edit dialog checks).",
+        "operationId": "DynamicFields_ValidateNode",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NodeValues"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ContentReport"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -807,6 +838,30 @@
           },
           "draft": {
             "$ref": "#/components/schemas/FieldDraft"
+          }
+        }
+      },
+      "NodeValues": {
+        "required": [
+          "field",
+          "fieldVersion",
+          "content",
+          "style"
+        ],
+        "type": "object",
+        "properties": {
+          "field": {
+            "type": "string"
+          },
+          "fieldVersion": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "content": {
+            "$ref": "#/components/schemas/JsonElement"
+          },
+          "style": {
+            "$ref": "#/components/schemas/JsonElement"
           }
         }
       },

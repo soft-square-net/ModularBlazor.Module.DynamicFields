@@ -133,3 +133,18 @@ public class ContentTreeValidatorTests
             .ShouldContain(i => i.Message.Contains($"at most {ContentTreeValidator.MaxDepth} levels"));
     }
 }
+
+public class NodeValuesTests
+{
+    private static readonly FieldSnapshot Image = Publish("block.image", Image(), new Dictionary<string, int>());
+
+    [Fact]
+    public void ChecksOneNodeWithoutItsPlaceInATree()
+    {
+        ContentTreeValidator.ValidateValues(Image, Json("""{ "asset": "a1", "caption": "The venue" }"""), Json("""{ "width": "half" }"""))
+            .ShouldBeEmpty();
+
+        ContentTreeValidator.ValidateValues(Image, Json("""{ "caption": "x" }"""), Json("""{ "width": "huge" }"""))
+            .Select(i => i.Path).ShouldBe(["/content/asset", "/style/width"]);
+    }
+}

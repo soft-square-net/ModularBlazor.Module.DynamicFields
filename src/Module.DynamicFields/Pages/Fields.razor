@@ -2,6 +2,7 @@
 @using System.Text.Json
 @using System.Text.Json.Serialization
 @inherits DynamicFieldsPageBase
+@inject IModuleDialogs ModuleDialogs
 
 @*
   The tenant's fields (GET /api/dynamicfields/fields), with search and a "posts only" filter. A row opens the field: its
@@ -84,6 +85,8 @@
           {
             <button type="button" class="mud-button-root mud-button-outlined mud-button-primary mud-button-medium" @onclick="PublishAsync"
                     disabled="@(Busy || !d.HasDraftChanges)">Publish version @(d.LatestVersion + 1)</button>
+            <button type="button" class="mud-button-root mud-button-outlined mud-button-primary mud-button-medium" @onclick="TryEditorAsync"
+                    disabled="@(Busy || d.LatestVersion == 0)" title="Opens the edit-content dialog with the newest version">Try the editor</button>
             @if (d.LatestVersion == 0)
             {
               <button type="button" class="mud-button-root mud-button-outlined mud-button-error mud-button-medium" @onclick="DeleteAsync" disabled="@Busy">Delete</button>
@@ -92,11 +95,15 @@
           <button type="button" class="mud-button-root mud-button-text mud-button-surface mud-button-medium" @onclick="() => _form = null">Close</button>
         </div>
       </form>
+      @if (_tried is not null)
+      {
+        <pre class="mn-result" aria-label="What the editor returned">@_tried</pre>
+      }
     </section>
   }
 
   <section class="mud-paper mud-elevation-1 mn-card">
-    <MudTailDataTable @ref="_table" Columns="Columns" OnRowClick="OpenAsync" EmptyText="No fields yet." />
+    <MudTailDataTable @ref="_table" RowKey="key" Columns="Columns" OnRowClick="OpenAsync" EmptyText="No fields yet." />
     <div class="mn-pager">
       <span class="mud-typography mud-typography-body2 mn-muted">@PagerText</span>
       <button type="button" class="mud-button-root mud-button-outlined mud-button-primary mud-button-small" @onclick="() => GoToAsync(_page - 1)" disabled="@(Busy || _page <= 1)">Previous</button>
@@ -111,6 +118,7 @@
   private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web)
   {
     WriteIndented = true,
+    Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping, // shown as text, so "+" stays "+"
     Converters = { new JsonStringEnumConverter() },
     DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
   };
@@ -244,6 +252,28 @@
       await MudTail.ToastAsync($"{detail.Key} version {published.Field.Version} published.", "success");
       _form = ToForm(await Api.GetFieldAsync(detail.Key));
     }, then: LoadAsync);
+  }
+
+  private string? _tried; // what the editor returned last, as JSON
+
+  /// <summary>Opens the edit-content dialog by its id, as another module would, with the last result as its content.</summary>
+  private async Task TryEditorAsync()
+  {
+    if (_form?.Detail is not { } detail) return;
+    JsonElement? content = null, style = null;
+    if (_tried is not null)
+    {
+      using var last = JsonDocument.Parse(_tried);
+      if (last.RootElement.TryGetProperty("field", out var f) && f.GetString() == detail.Key)
+      {
+        content = last.RootElement.GetProperty("content").Clone();
+        style = last.RootElement.GetProperty("style").Clone();
+      }
+    }
+
+    var result = await ModuleDialogs.ShowAsync("Module.DynamicFields/edit-content", new { field = detail.Key, content, style });
+    _tried = result.Canceled ? _tried : JsonSerializer.Serialize(result.Data, Json);
+    if (result.Canceled) await MudTail.ToastAsync("The editor was canceled.", "info");
   }
 
   private async Task DeleteAsync()

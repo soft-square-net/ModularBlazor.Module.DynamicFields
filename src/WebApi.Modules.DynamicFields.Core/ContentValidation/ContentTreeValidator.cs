@@ -42,6 +42,19 @@ public static class ContentTreeValidator
         return issues;
     }
 
+    /// <summary>
+    /// Checks one node's values and style against its field, without its place in a tree (what an editor dialog checks
+    /// before it closes). Paths start at <c>/content</c> and <c>/style</c>.
+    /// </summary>
+    public static IReadOnlyList<ContentIssue> ValidateValues(FieldSnapshot field, JsonElement content, JsonElement style)
+    {
+        ArgumentNullException.ThrowIfNull(field);
+        var issues = new List<ContentIssue>();
+        Content(field, content, "/content", issues);
+        Style(field, style, "/style", issues);
+        return issues;
+    }
+
     private static void Node(ContentNode node, FieldSnapshot? parent, string path, int depth,
         Func<string, int, FieldSnapshot?> resolve, List<ContentIssue> issues, ref int nodes)
     {

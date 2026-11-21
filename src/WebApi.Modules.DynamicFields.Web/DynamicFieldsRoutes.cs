@@ -27,5 +27,6 @@ public sealed class DynamicFieldsRoutes : ICarterModule
         var content = app.MapGroup("/content").WithTags("Content").AddEndpointFilter<DynamicFieldsProblemsFilter>();
 
         Content.Validate.Map(content);
+        Content.ValidateNode.Map(content);
     }
 }
