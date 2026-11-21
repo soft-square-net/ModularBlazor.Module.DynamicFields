@@ -1,0 +1,14 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/WebApi.Modules.DynamicFields.Core/WebApi.Modules.DynamicFields.Core.csproj" />
+    <Project Path="src/WebApi.Modules.DynamicFields.UseCases/WebApi.Modules.DynamicFields.UseCases.csproj" />
+    <Project Path="src/WebApi.Modules.DynamicFields.Infrastructure/WebApi.Modules.DynamicFields.Infrastructure.csproj" />
+    <Project Path="src/WebApi.Modules.DynamicFields.Web/WebApi.Modules.DynamicFields.Web.csproj" />
+    <Project Path="src/WebApi.Modules.DynamicFields.Client/WebApi.Modules.DynamicFields.Client.csproj" />
+    <Project Path="src/Module.DynamicFields/Module.DynamicFields.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/WebApi.Modules.DynamicFields.UnitTests/WebApi.Modules.DynamicFields.UnitTests.csproj" />
+    <Project Path="tests/WebApi.Modules.DynamicFields.IntegrationTests/WebApi.Modules.DynamicFields.IntegrationTests.csproj" />
+  </Folder>
+</Solution>
