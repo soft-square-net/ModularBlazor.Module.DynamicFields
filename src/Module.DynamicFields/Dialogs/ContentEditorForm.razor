@@ -1,0 +1,253 @@
+@using soft.square.net.Module.DynamicFields.Dialogs
+@inject IModuleDialogs ModuleDialogs
+
+@*
+  The form of one content node: a control per value of the field and a select per style. The edit-content dialog shows
+  it around a published version; the field builder shows it as a live preview of a draft. Issues are keyed by owner path
+  (/content/{key}, /style/{key}).
+  Asset, Keyword and Term values get a "Choose" button when the user's catalog has the picker dialog of that module:
+  Module.Media/pick-asset, Module.Keywords/pick-concepts, Module.Taxonomies/pick-terms, each called with
+  { multiple, selected: [ids] } and answering { ids: [...] }. Without one, the id is typed.
+*@
+
+<p class="mud-typography mud-typography-body2 mn-muted df-editor-type">
+  @State.Field.Title · schema.org <strong>@State.Field.SchemaType</strong> · @State.Field.Key@(State.Field.Version > 0 ? $" v{State.Field.Version}" : "")
+</p>
+@if (State.Field.Description is { Length: > 0 } description)
+{
+  <p class="mud-typography mud-typography-body2">@description</p>
+}
+@if (State.Values.Count == 0 && State.Styles.Count == 0)
+{
+  <p class="mud-typography mud-typography-body2 mn-muted">This field has no values or style yet.</p>
+}
+
+@foreach (var value in State.Values)
+{
+  var p = value.Property;
+  var id = $"df-{_uid}-{p.Key}";
+  <div class="mud-input-control df-value @(IssueFor($"/content/{p.Key}") is not null ? "mud-input-error" : "")" @key="value">
+    @if (p.Kind == PropertyKind.Boolean && !value.Multiple)
+    {
+      <label class="mn-check"><input id="@id" type="checkbox" @bind="value.Flag" /> @p.Label</label>
+    }
+    else
+    {
+      <label class="mud-input-label" for="@id">@p.Label@(value.Required ? " *" : "")</label>
+      @if (value.IsChoice && value.Multiple)
+      {
+        <div class="df-choices" id="@id">
+          @foreach (var option in p.Options ?? [])
+          {
+            <label class="mn-check">
+              <input type="checkbox" checked="@value.Items.Contains(option)" @onchange="e => Toggle(value, option, e.Value is true)" /> @option
+            </label>
+          }
+        </div>
+      }
+      else if (value.Multiple)
+      {
+        @for (var i = 0; i < value.Items.Count; i++)
+        {
+          var index = i;
+          <div class="df-item">
+            <div class="mud-input-wrapper mud-input-wrapper--dense">
+              <input id="@(index == 0 ? id : null)" class="mud-input-slot" type="@InputType(p.Kind)" step="@Step(p.Kind)" maxlength="@p.MaxLength"
+                     value="@value.Items[index]" @onchange="e => value.Items[index] = e.Value?.ToString() ?? string.Empty" placeholder="@Placeholder(p.Kind)" />
+            </div>
+            <button type="button" class="mud-button-root mud-button-text mud-button-small" aria-label="Remove" @onclick="() => value.Items.RemoveAt(index)">✕</button>
+          </div>
+        }
+        <div class="df-item-actions">
+          <button type="button" class="mud-button-root mud-button-text mud-button-primary mud-button-small" @onclick="() => value.Items.Add(string.Empty)">Add</button>
+          @if (Picker(p.Kind) is { } picker && ModuleDialogs.IsAvailable(picker))
+          {
+            <button type="button" class="mud-button-root mud-button-text mud-button-primary mud-button-small" @onclick="() => PickAsync(value, picker)">Choose…</button>
+          }
+        </div>
+      }
+      else if (value.IsChoice)
+      {
+        <div class="mud-input-wrapper mud-input-wrapper--select">
+          <select id="@id" class="mud-input-slot" @bind="value.Text">
+            <option value="">@(value.Required ? "Choose…" : "—")</option>
+            @foreach (var option in p.Options ?? [])
+            {
+              <option value="@option">@option</option>
+            }
+          </select>
+        </div>
+      }
+      else if (p.Kind == PropertyKind.RichText)
+      {
+        <div class="mud-input-wrapper">
+          <textarea id="@id" class="mud-input-slot mn-body" rows="6" maxlength="@p.MaxLength" @bind="value.Text"></textarea>
+        </div>
+      }
+      else
+      {
+        <div class="df-item">
+          <div class="mud-input-wrapper">
+            <input id="@id" class="mud-input-slot" type="@InputType(p.Kind)" step="@Step(p.Kind)" maxlength="@p.MaxLength"
+                   min="@p.Minimum" max="@p.Maximum" @bind="value.Text" placeholder="@Placeholder(p.Kind)" />
+          </div>
+          @if (Picker(p.Kind) is { } picker && ModuleDialogs.IsAvailable(picker))
+          {
+            <button type="button" class="mud-button-root mud-button-text mud-button-primary mud-button-small" @onclick="() => PickAsync(value, picker)">Choose…</button>
+          }
+        </div>
+      }
+    }
+    @if (IssueFor($"/content/{p.Key}") is { } issue)
+    {
+      <div class="mud-input-helper-text mn-error" role="alert">@issue</div>
+    }
+    else if (Help(p) is { Length: > 0 } help)
+    {
+      <div class="mud-input-helper-text">@help</div>
+    }
+  </div>
+}
+
+@if (State.Styles.Count > 0)
+{
+  <details class="df-style" open="@StyleOpen">
+    <summary class="mud-typography mud-typography-subtitle2">Style</summary>
+    @foreach (var style in State.Styles)
+    {
+      var s = style.Property;
+      var id = $"df-{_uid}-style-{s.Key}";
+      <div class="mud-input-control df-value" @key="style">
+        <label class="mud-input-label" for="@id">@s.Label</label>
+        <div class="mud-input-wrapper mud-input-wrapper--select">
+          <select id="@id" class="mud-input-slot" @bind="style.Base">
+            <option value="">@(s.Default is { } d ? $"Default ({d})" : "Default")</option>
+            @foreach (var token in s.Values)
+            {
+              <option value="@token">@token</option>
+            }
+          </select>
+        </div>
+        @if (style.Responsive)
+        {
+          <label class="mn-check"><input type="checkbox" @bind="style.ByBreakpoint" /> Different on wider screens</label>
+          @if (style.ByBreakpoint)
+          {
+            <div class="df-breakpoints">
+              @foreach (var point in ContentEditorState.StyleState.Breakpoints)
+              {
+                <label class="df-breakpoint">
+                  <span>@point</span>
+                  <select class="mud-input-slot" value="@style.PerBreakpoint.GetValueOrDefault(point, "")"
+                          @onchange="e => style.PerBreakpoint[point] = e.Value?.ToString() ?? string.Empty">
+                    <option value="">as smaller</option>
+                    @foreach (var token in s.Values)
+                    {
+                      <option value="@token">@token</option>
+                    }
+                  </select>
+                </label>
+              }
+            </div>
+          }
+        }
+        @if (IssueFor($"/style/{s.Key}") is { } issue)
+        {
+          <div class="mud-input-helper-text mn-error" role="alert">@issue</div>
+        }
+      </div>
+    }
+  </details>
+}
+
+@if (OtherIssues.Count > 0)
+{
+  <div class="mn-error" role="alert">
+    @foreach (var issue in OtherIssues) { <p>@issue</p> }
+  </div>
+}
+
+@code {
+  /// <summary>The values and style being edited.</summary>
+  [Parameter, EditorRequired] public ContentEditorState State { get; set; } = default!;
+
+  /// <summary>Issues by owner path: /content/{key} or /style/{key}.</summary>
+  [Parameter] public IReadOnlyDictionary<string, string> Issues { get; set; } = new Dictionary<string, string>();
+
+  /// <summary>Issues that belong to no single value.</summary>
+  [Parameter] public IReadOnlyList<string> OtherIssues { get; set; } = [];
+
+  /// <summary>Whether the style section starts open.</summary>
+  [Parameter] public bool StyleOpen { get; set; }
+
+  /// <summary>The ids a picker dialog answers with.</summary>
+  private sealed record Picked(IReadOnlyList<string>? Ids);
+
+  private readonly string _uid = Guid.NewGuid().ToString("n")[..8];
+
+  private string? IssueFor(string path) => Issues.GetValueOrDefault(path);
+
+  private static void Toggle(ContentEditorState.ValueState value, string option, bool on)
+  {
+    value.Items.Remove(option);
+    if (on) value.Items.Add(option);
+  }
+
+  private async Task PickAsync(ContentEditorState.ValueState value, string picker)
+  {
+    var selected = value.Multiple ? value.Items.Where(i => i.Trim().Length > 0).ToArray() : value.Text.Trim().Length > 0 ? [value.Text.Trim()] : [];
+    var result = await ModuleDialogs.ShowAsync(picker, new { multiple = value.Multiple, selected });
+    if (result.Canceled || result.As<Picked>()?.Ids is not { } ids) return;
+
+    if (value.Multiple)
+    {
+      value.Items.Clear();
+      value.Items.AddRange(ids);
+      if (value.Items.Count == 0) value.Items.Add("");
+    }
+    else value.Text = ids.FirstOrDefault() ?? "";
+  }
+
+  private static string? Picker(PropertyKind kind) => kind switch
+  {
+    PropertyKind.Asset => "Module.Media/pick-asset",
+    PropertyKind.Keyword => "Module.Keywords/pick-concepts",
+    PropertyKind.Term => "Module.Taxonomies/pick-terms",
+    _ => null
+  };
+
+  private static string InputType(PropertyKind kind) => kind switch
+  {
+    PropertyKind.Integer or PropertyKind.Decimal => "number",
+    PropertyKind.Date => "date",
+    PropertyKind.DateTime => "datetime-local",
+    PropertyKind.Url => "url",
+    _ => "text"
+  };
+
+  private static string? Step(PropertyKind kind) => kind switch
+  {
+    PropertyKind.Integer => "1",
+    PropertyKind.Decimal => "any",
+    _ => null
+  };
+
+  private static string? Placeholder(PropertyKind kind) => kind switch
+  {
+    PropertyKind.Url => "https://…",
+    PropertyKind.Asset => "asset id",
+    PropertyKind.Keyword => "keyword id",
+    PropertyKind.Term => "term id",
+    _ => null
+  };
+
+  private static string? Help(FieldProperty p)
+  {
+    var parts = new List<string>();
+    if (p.HelpText is { Length: > 0 } help) parts.Add(help);
+    if (p.MaxLength is { } max) parts.Add($"Up to {max} characters.");
+    if (p.Minimum is { } min && p.Maximum is { } top) parts.Add($"{min} to {top}.");
+    if (p.SchemaProperty is { Length: > 0 } schema) parts.Add($"schema.org: {schema}");
+    return string.Join(" ", parts);
+  }
+}

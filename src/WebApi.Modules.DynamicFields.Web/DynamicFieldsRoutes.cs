@@ -1,4 +1,5 @@
 using Carter;
+using Catalog = soft.square.net.WebApi.Modules.DynamicFields.Web.Catalog;
 using Content = soft.square.net.WebApi.Modules.DynamicFields.Web.Content;
 using Fields = soft.square.net.WebApi.Modules.DynamicFields.Web.Fields;
 
@@ -28,5 +29,11 @@ public sealed class DynamicFieldsRoutes : ICarterModule
 
         Content.Validate.Map(content);
         Content.ValidateNode.Map(content);
+
+        var catalog = app.MapGroup("/catalog").WithTags("Catalog").AddEndpointFilter<DynamicFieldsProblemsFilter>();
+
+        Catalog.SchemaOrg.Map(catalog);
+        Catalog.StarterFields.Map(catalog);
+        Catalog.InstallStarterFields.Map(catalog);
     }
 }
