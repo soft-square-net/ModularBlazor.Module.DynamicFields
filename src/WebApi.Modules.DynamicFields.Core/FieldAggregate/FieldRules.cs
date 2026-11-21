@@ -106,7 +106,11 @@ public static partial class FieldRules
         else if (p.Options is { Count: > 0 })
             throw new DomainException($"Property '{key}': only a choice has options.");
 
-        return p with { Key = key, Label = label, HelpText = help, SchemaProperty = schemaProperty, Options = options };
+        if (p.Translatable == true && !textual)
+            throw new DomainException($"Property '{key}': only text (Text, RichText) has translations.");
+
+        return p with { Key = key, Label = label, HelpText = help, SchemaProperty = schemaProperty, Options = options,
+            Translatable = textual ? p.Translatable : null };
     }
 
     private static StyleProperty CheckStyle(StyleProperty s)

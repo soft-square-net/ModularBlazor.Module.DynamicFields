@@ -339,6 +339,68 @@
         }
       }
     },
+    "/api/dynamicfields/content/translations/check": {
+      "post": {
+        "tags": [
+          "Content"
+        ],
+        "summary": "List a content tree's translatable values and check a translation overlay against it.",
+        "operationId": "DynamicFields_CheckTranslation",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TranslationCheck"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TranslationReport"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/dynamicfields/content/translations/apply": {
+      "post": {
+        "tags": [
+          "Content"
+        ],
+        "summary": "Merge translation overlays onto a content tree for a reader's culture, with fallback to the source.",
+        "operationId": "DynamicFields_ApplyTranslations",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TranslationMerge"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LocalizedContent"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/dynamicfields/catalog/schema-org": {
       "get": {
         "tags": [
@@ -509,6 +571,27 @@
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/ContentIssue"
+            }
+          }
+        }
+      },
+      "ContentTranslation": {
+        "required": [
+          "language",
+          "nodes"
+        ],
+        "type": "object",
+        "properties": {
+          "language": {
+            "type": "string"
+          },
+          "nodes": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "object",
+              "additionalProperties": {
+                "$ref": "#/components/schemas/TranslatedValue"
+              }
             }
           }
         }
@@ -744,6 +827,12 @@
             "items": {
               "type": "string"
             }
+          },
+          "translatable": {
+            "type": [
+              "null",
+              "boolean"
+            ]
           }
         }
       },
@@ -902,6 +991,42 @@
         }
       },
       "JsonElement": { },
+      "LocalizedContent": {
+        "required": [
+          "root",
+          "chain",
+          "languages",
+          "stale",
+          "untranslated"
+        ],
+        "type": "object",
+        "properties": {
+          "root": {
+            "$ref": "#/components/schemas/ContentNode"
+          },
+          "chain": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "languages": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          "stale": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "untranslated": {
+            "type": "integer",
+            "format": "int32"
+          }
+        }
+      },
       "NewField": {
         "required": [
           "key",
@@ -1245,6 +1370,205 @@
             "type": [
               "null",
               "string"
+            ]
+          }
+        }
+      },
+      "TranslatedValue": {
+        "required": [
+          "value",
+          "sourceHash"
+        ],
+        "type": "object",
+        "properties": {
+          "value": {
+            "$ref": "#/components/schemas/JsonElement"
+          },
+          "sourceHash": {
+            "type": "string"
+          }
+        }
+      },
+      "TranslationCheck": {
+        "required": [
+          "root",
+          "translation"
+        ],
+        "type": "object",
+        "properties": {
+          "root": {
+            "$ref": "#/components/schemas/ContentNode"
+          },
+          "translation": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/ContentTranslation"
+              }
+            ]
+          }
+        }
+      },
+      "TranslationMerge": {
+        "required": [
+          "root",
+          "translations",
+          "culture",
+          "useStale"
+        ],
+        "type": "object",
+        "properties": {
+          "root": {
+            "$ref": "#/components/schemas/ContentNode"
+          },
+          "translations": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ContentTranslation"
+            }
+          },
+          "culture": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "useStale": {
+            "type": [
+              "null",
+              "boolean"
+            ]
+          }
+        }
+      },
+      "TranslationReport": {
+        "required": [
+          "valid",
+          "issues",
+          "units",
+          "summary"
+        ],
+        "type": "object",
+        "properties": {
+          "valid": {
+            "type": "boolean"
+          },
+          "issues": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ContentIssue"
+            }
+          },
+          "units": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TranslationUnit"
+            }
+          },
+          "summary": {
+            "$ref": "#/components/schemas/TranslationSummary"
+          }
+        }
+      },
+      "TranslationState": {
+        "enum": [
+          "Missing",
+          "Stale",
+          "Current"
+        ],
+        "type": "string"
+      },
+      "TranslationSummary": {
+        "required": [
+          "total",
+          "current",
+          "stale",
+          "missing"
+        ],
+        "type": "object",
+        "properties": {
+          "total": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "current": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "stale": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "missing": {
+            "type": "integer",
+            "format": "int32"
+          }
+        }
+      },
+      "TranslationUnit": {
+        "required": [
+          "nodeId",
+          "path",
+          "field",
+          "key",
+          "label",
+          "kind",
+          "multiple",
+          "maxLength",
+          "source",
+          "sourceHash",
+          "state",
+          "translation"
+        ],
+        "type": "object",
+        "properties": {
+          "nodeId": {
+            "type": "string"
+          },
+          "path": {
+            "type": "string"
+          },
+          "field": {
+            "type": "string"
+          },
+          "key": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/PropertyKind"
+          },
+          "multiple": {
+            "type": "boolean"
+          },
+          "maxLength": {
+            "type": [
+              "null",
+              "integer"
+            ],
+            "format": "int32"
+          },
+          "source": {
+            "$ref": "#/components/schemas/JsonElement"
+          },
+          "sourceHash": {
+            "type": "string"
+          },
+          "state": {
+            "$ref": "#/components/schemas/TranslationState"
+          },
+          "translation": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/JsonElement"
+              }
             ]
           }
         }

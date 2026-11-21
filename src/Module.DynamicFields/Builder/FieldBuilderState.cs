@@ -100,6 +100,7 @@ public sealed class FieldBuilderState
         public PropertyKind Kind { get; set; } = PropertyKind.Text;
         public bool Required { get; set; }
         public bool Multiple { get; set; }
+        public bool Translatable { get; set; } = true;
         public string? SchemaProperty { get; set; }
         public string? HelpText { get; set; }
         public int? MinLength { get; set; }
@@ -123,6 +124,7 @@ public sealed class FieldBuilderState
             Multiple = p.Multiple == true,
             SchemaProperty = p.SchemaProperty,
             HelpText = p.HelpText,
+            Translatable = p.Translatable != false,
             MinLength = p.MinLength,
             MaxLength = p.MaxLength,
             Minimum = p.Minimum,
@@ -154,6 +156,7 @@ public sealed class FieldBuilderState
             Required = Required,
             Multiple = Multiple,
             SchemaProperty = Blank(SchemaProperty),
+            Translatable = IsText && !Translatable ? false : null,
             HelpText = Blank(HelpText),
             MinLength = IsText ? MinLength : null,
             MaxLength = IsText ? MaxLength : null,

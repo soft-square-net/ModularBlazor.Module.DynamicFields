@@ -50,6 +50,8 @@ The module's id, route prefix and database schema are `dynamicfields`; its permi
 | `DELETE /fields/{key}?version=` | `dynamicfields.manage` | `DeleteFieldCommand`: 204; 409 once the field has been published |
 | `POST /content/validate` `{ root }` | `dynamicfields.read` | `ValidateContentQuery`: `{ valid, issues: [{ path, message }] }`, paths as JSON Pointers |
 | `POST /content/validate-node` `{ field, fieldVersion, content, style }` | `dynamicfields.read` | `ValidateNodeQuery`: one node's values and style (no children), the same report; 404 if the version is not published |
+| `POST /content/translations/check` `{ root, translation? }` | `dynamicfields.read` | `CheckTranslationQuery`: the tree's translatable values (`units`: node id, key, source, `sourceHash`, state) and, with an overlay, its `issues` and a `summary` of current, stale and missing |
+| `POST /content/translations/apply` `{ root, translations, culture?, useStale? }` | `dynamicfields.read` | `ApplyTranslationsQuery`: the tree with its text in the reader's culture (the culture's overlay, then its parents', then the source), the `chain` used and counts |
 | `GET /catalog/schema-org` | `dynamicfields.read` | `GetSchemaOrgCatalogQuery`: the schema.org types (path, every property, suggested ones), their properties (label, suggested kind, limits) and the style presets |
 | `GET /catalog/starter-fields` | `dynamicfields.read` | `ListStarterFieldsQuery`: the starter library, each marked `installed` when the tenant has a field with its key |
 | `POST /catalog/starter-fields/install` `{ keys? }` | `dynamicfields.manage` | `InstallStarterFieldsCommand`: creates and publishes them (no keys: all) with the fields they contain; `{ installed, skipped, drafts }` |
@@ -117,6 +119,43 @@ Asset, Keyword and Term values are ids typed by hand, with a Pick button when `M
 `Module.Keywords/pick-concepts` or `Module.Taxonomies/pick-terms` is installed (parameters `{ multiple, selected }`,
 result `{ ids }`). Rich text is a plain textarea for now. The form itself is `ContentEditorForm`, which the builder's
 preview also shows.
+
+### Content translation
+
+Content is written in one source language; each other language is an **overlay** kept beside it, never a copy of the
+tree. Only textual values are translated: Text and RichText properties, unless the field says `translatable: false`
+(a code, a slug). Ids, numbers, dates, choices, style and the tree's shape always come from the source, so a
+translation can never break the content's structure.
+
+```jsonc
+{ "language": "en",
+  "nodes": {
+    "$root": { "headline": { "value": "Final day at the venue", "sourceHash": "3f0c9a1d2b7e4c55" } },
+    "img1":  { "caption":  { "value": "The venue", "sourceHash": "91be0c7d4a2f1e08" } } } }
+```
+
+- **Keys:** the node id (`$root` for the root, which has none) and the property key, so overlays survive reordering
+  and edits elsewhere in the tree. A child node needs a `nodeId` to be translated.
+- **Staleness:** `sourceHash` is the hash of the source value a translation was made from. When the source changes, the
+  value is *stale*: still served (unless `useStale: false`) and flagged for the translator until it is edited or
+  marked still right.
+- **Fallback:** a reader in `ar-EG` gets the `ar-EG` overlay, then `ar`, then the source, value by value.
+- **Who keeps what:** this module owns the rules (`ContentTranslator` in Core: units, checks, merge, prune) and the
+  editor; the consumer (Contents) stores one overlay per post and language, checks it with
+  `POST /content/translations/check` before saving, prunes it after source edits, and serves readers through
+  `POST /content/translations/apply` (or `ContentTranslator.Apply` when it references Core).
+
+`Module.DynamicFields/translate-content` is the translation editor, opened by id like the edit dialog:
+
+```csharp
+var result = await ModuleDialogs.ShowAsync("Module.DynamicFields/translate-content",
+    new { root, language = "en", translation, nodeId = "img1" }); // translation and nodeId are optional
+if (!result.Canceled) { /* result.Data: the whole overlay { language, nodes }, checked by the server */ }
+```
+
+It shows each value's source beside an input in the target language (right to left for Arabic and the other RTL
+languages), its state, "Copy the source" and "Still right" for a stale one. The field builder's "Try translating"
+button opens it with the content the editor returned.
 
 ## Building
 

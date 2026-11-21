@@ -1,0 +1,161 @@
+@attribute [ClientDialog("Module.DynamicFields/translate-content", Title = "Translate content", MaxWidth = "960px")]
+@using System.Globalization
+@using System.Text.Json
+@using soft.square.net.Module.DynamicFields.Dialogs
+@inherits DynamicFieldsPageBase
+
+@*
+  Dialog "Module.DynamicFields/translate-content": translates the textual values (Text, RichText) of a content tree into
+  one language, side by side with the source. For any module (IModuleDialogs.ShowAsync); the Contents editor opens it
+  per post and language, and keeps what it returns next to the post.
+    parameters  { root: { field, fieldVersion, content, style, children, nodeId }, language: "en",
+                  translation?: { language, nodes: { "$root": { headline: { value, sourceHash } }, "<nodeId>": {...} } },
+                  nodeId?: "img1" (only that node's values; the root is "$root") }
+    result      { language, nodes }   the whole overlay, checked by the server before the dialog closes
+  Child nodes need a nodeId to be translated. Ids, numbers, dates, choices and style are never translated: readers
+  always get the source's.
+*@
+
+<div class="mud-dialog-content df-editor df-translate">
+  @if (_draft is null)
+  {
+    <p class="mud-typography mud-typography-body2 mn-muted">@(Error ?? L["Loading the content…"])</p>
+  }
+  else
+  {
+    <p class="mud-typography mud-typography-body2 df-editor-type">
+      @L["Into {0}", LanguageName(_draft.Language)]
+      <span class="mn-chip">@L["{0} current", _draft.Count(TranslationState.Current)]</span>
+      <span class="mn-chip df-warn-text">@L["{0} stale", _draft.Count(TranslationState.Stale)]</span>
+      <span class="mn-chip">@L["{0} missing", _draft.Count(TranslationState.Missing)]</span>
+    </p>
+    @if (_draft.Units.Count == 0)
+    {
+      <p class="mud-typography mud-typography-body2 mn-muted">@L["Nothing to translate: this content has no text values yet (or its nodes have no node ids)."]</p>
+    }
+    @foreach (var unit in _draft.Units)
+    {
+      var u = unit;
+      var issue = _issues.GetValueOrDefault(u);
+      <div class="df-unit mud-input-control @(issue is not null ? "mud-input-error" : "")" @key="u">
+        <div class="df-unit-head">
+          <strong>@u.Unit.Label</strong>
+          <span class="mn-muted">@(u.Unit.NodeId == "$root" ? L["the post"] : u.Unit.NodeId) · @u.Unit.Field</span>
+          <span class="mn-chip @(u.State == TranslationState.Stale ? "df-warn-text" : "")">@L[StateWord(u.State)]</span>
+          @if (u.State == TranslationState.Stale)
+          {
+            <button type="button" class="mud-button-root mud-button-text mud-button-primary mud-button-small"
+                    title="@L["The source changed since this was translated. Keep the translation as it is?"]" @onclick="() => u.MarkedCurrent = true">@L["Still right"]</button>
+          }
+          @if (u.Items.Any(i => i.Trim().Length == 0))
+          {
+            <button type="button" class="mud-button-root mud-button-text mud-button-small" @onclick="u.CopySource">@L["Copy the source"]</button>
+          }
+        </div>
+        @for (var i = 0; i < u.Sources.Count; i++)
+        {
+          var index = i;
+          <div class="df-unit-pair">
+            <div class="df-source" dir="auto">@u.Sources[index]</div>
+            <div class="mud-input-wrapper">
+              @if (u.IsRich)
+              {
+                <textarea class="mud-input-slot mn-body" dir="@Dir" lang="@_draft.Language" maxlength="@u.Unit.MaxLength" aria-label="@L["{0} in {1}", u.Unit.Label, _draft.Language]"
+                          value="@u.Items[index]" @onchange="e => u.Items[index] = e.Value?.ToString() ?? string.Empty"></textarea>
+              }
+              else
+              {
+                <input class="mud-input-slot" dir="@Dir" lang="@_draft.Language" maxlength="@u.Unit.MaxLength" aria-label="@L["{0} in {1}", u.Unit.Label, _draft.Language]"
+                       value="@u.Items[index]" @onchange="e => u.Items[index] = e.Value?.ToString() ?? string.Empty" />
+              }
+            </div>
+          </div>
+        }
+        @if (issue is not null)
+        {
+          <p class="mud-input-helper-text mn-error">@issue</p>
+        }
+      </div>
+    }
+  }
+  @foreach (var other in OtherIssues)
+  {
+    <p class="mud-typography mud-typography-body2 mn-error">@other</p>
+  }
+</div>
+<div class="mud-dialog-actions">
+  <button type="button" class="mud-button-root mud-button-text mud-button-medium" @onclick="Dialog.Cancel">@L["Cancel"]</button>
+  <button type="button" class="mud-button-root mud-button-filled mud-button-primary mud-button-medium"
+          disabled="@(_draft is null || Busy)" @onclick="SaveAsync">@L["Save"]</button>
+</div>
+
+@code {
+  [CascadingParameter] public IDialogReference Dialog { get; set; } = default!;
+
+  /// <summary>The caller's parameters (web JSON).</summary>
+  private sealed record Parameters(ContentNode? Root, string? Language, ContentTranslation? Translation, string? NodeId);
+
+  private Parameters? _parameters;
+  private TranslationDraft? _draft;
+  private Dictionary<TranslationDraft.UnitState, string> _issues = [];
+  private List<string> _otherIssues = [];
+
+  private IReadOnlyList<string> OtherIssues => Error is null || _draft is null ? _otherIssues : [Error, .. _otherIssues];
+  private string Dir => _draft is not null && TranslationDraft.IsRightToLeft(_draft.Language) ? "rtl" : "ltr";
+
+  protected override async Task OnAfterRenderAsync(bool firstRender)
+  {
+    if (!firstRender) return;
+    _parameters = Dialog.GetParameters<Parameters>();
+    if (_parameters?.Root is null || string.IsNullOrWhiteSpace(_parameters.Language))
+    {
+      Error = L["Nothing to translate: open the dialog with the content (root) and a language."];
+      StateHasChanged();
+      return;
+    }
+    var existing = _parameters.Translation is { } t && string.Equals(t.Language, _parameters.Language, StringComparison.OrdinalIgnoreCase) ? t : null;
+    await RunAsync(async () =>
+    {
+      var report = await Api.CheckTranslationAsync(new TranslationCheck { Root = _parameters.Root, Translation = existing });
+      _draft = new TranslationDraft(_parameters.Language.Trim(), report.Units, existing, _parameters.NodeId);
+    }, toast: false);
+  }
+
+  private async Task SaveAsync()
+  {
+    if (_draft is null || _parameters?.Root is null) return;
+    _issues = [];
+    _otherIssues = [];
+    Error = null;
+    var translation = _draft.ToTranslation();
+
+    TranslationReport? report = null;
+    var checkedOk = await RunAsync(async () => report = await Api.CheckTranslationAsync(new TranslationCheck { Root = _parameters.Root, Translation = translation }), toast: false);
+    if (!checkedOk || report is null) return;
+
+    if (!report.Valid)
+    {
+      foreach (var issue in report.Issues)
+      {
+        if (_draft.Owner(issue.Path) is { } unit) _issues.TryAdd(unit, issue.Message);
+        else _otherIssues.Add($"{issue.Path}: {issue.Message}");
+      }
+      return;
+    }
+
+    Dialog.Close(translation);
+  }
+
+  private static string StateWord(TranslationState state) => state switch
+  {
+    TranslationState.Current => "Current",
+    TranslationState.Stale => "Stale",
+    _ => "Missing"
+  };
+
+  private static string LanguageName(string language)
+  {
+    try { return $"{CultureInfo.GetCultureInfo(language).NativeName} ({language})"; }
+    catch (CultureNotFoundException) { return language; }
+  }
+}

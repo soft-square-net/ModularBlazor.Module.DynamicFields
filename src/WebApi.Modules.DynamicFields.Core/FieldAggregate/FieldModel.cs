@@ -49,7 +49,9 @@ public enum PropertyKind
 /// <summary>
 /// One value of a field's content. <see cref="Key"/> is the JSON property name and never changes once published (a
 /// label can). <see cref="SchemaProperty"/> is the schema.org property the value is published as (headline, caption,
-/// contentUrl, ...), which is what makes the content readable by search engines and AI.
+/// contentUrl, ...), which is what makes the content readable by search engines and AI. <see cref="Translatable"/>:
+/// whether the value has a translation per language (Text and RichText only; null means yes for them). Say false for
+/// text that is not language, such as a code or a slug.
 /// </summary>
 public sealed record FieldProperty(
     string Key,
@@ -63,7 +65,8 @@ public sealed record FieldProperty(
     int? MaxLength = null,
     decimal? Minimum = null,
     decimal? Maximum = null,
-    IReadOnlyList<string>? Options = null);
+    IReadOnlyList<string>? Options = null,
+    bool? Translatable = null);
 
 /// <summary>
 /// One style value of a field: a choice from <see cref="Values"/> (theme tokens such as "wide", "md", "start"), never

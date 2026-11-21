@@ -1,6 +1,5 @@
 using soft.square.net.WebApi.Modules.DynamicFields.Core.ContentValidation;
 using soft.square.net.WebApi.Modules.DynamicFields.Core.FieldAggregate;
-using soft.square.net.WebApi.Modules.DynamicFields.Core.FieldAggregate.Specifications;
 
 namespace soft.square.net.WebApi.Modules.DynamicFields.UseCases.Content.Validate;
 
@@ -19,22 +18,8 @@ public sealed class ValidateContentHandler(IReadRepository<FieldDefinition> fiel
     {
         if (query.Root is null) return Result<ContentReport>.Invalid(new ValidationError("root", "Send the content tree's root node."));
 
-        var keys = new HashSet<string>(StringComparer.Ordinal);
-        Collect(query.Root, keys, depth: 1);
-        var found = keys.Count == 0 ? [] : await fields.ListAsync(new FieldsByKeysSpec(keys), ct);
-        var byKey = found.ToDictionary(f => f.Key, StringComparer.Ordinal);
-
-        var issues = ContentTreeValidator.Validate(query.Root,
-            (key, number) => byKey.TryGetValue(key, out var field) ? field.GetVersion(number)?.Snapshot : null);
+        var resolve = await PublishedFields.ForTreeAsync(fields, query.Root, ct);
+        var issues = ContentTreeValidator.Validate(query.Root, resolve);
         return new ContentReport(issues.Count == 0, issues);
-    }
-
-    /// <summary>The field keys the tree names, within the validator's limits (it reports anything beyond them).</summary>
-    private static void Collect(ContentNode node, HashSet<string> keys, int depth)
-    {
-        if (depth > ContentTreeValidator.MaxDepth || keys.Count >= ContentTreeValidator.MaxNodes) return;
-        if (!string.IsNullOrEmpty(node.Field)) keys.Add(node.Field);
-        foreach (var child in node.Children ?? [])
-            if (child is not null) Collect(child, keys, depth + 1);
     }
 }

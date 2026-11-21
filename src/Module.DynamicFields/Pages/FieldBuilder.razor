@@ -7,7 +7,6 @@
 @using soft.square.net.Module.DynamicFields.Dialogs
 @inherits DynamicFieldsPageBase
 @inject IModuleDialogs ModuleDialogs
-@inject IStringLocalizer<ContentEditorForm> L
 
 @*
   The field builder: a field's draft as a form. Pick a schema.org type and its suggested values are added; add more from
@@ -209,6 +208,10 @@
                     <div class="df-checks">
                       <label class="mn-check"><input type="checkbox" @bind="r.Required" /> @L["Required"]</label>
                       <label class="mn-check"><input type="checkbox" @bind="r.Multiple" /> @L["A list (several values)"]</label>
+                      @if (r.IsText)
+                      {
+                        <label class="mn-check" title="@L["Off for text that is not language, such as a code or a slug."]"><input type="checkbox" @bind="r.Translatable" /> @L["Translated per language"]</label>
+                      }
                     </div>
                     <div class="mud-input-control">
                       <label class="mud-input-label" for="@($"{id}-help")">@L["Help text"]</label>
@@ -428,6 +431,15 @@
           <section class="mud-paper mud-elevation-1 mn-card">
             <h2 class="mud-typography mud-typography-subtitle2">@L["What the editor returned"]</h2>
             <pre class="mn-result">@_tried</pre>
+            <div class="mn-row-actions">
+              <button type="button" class="mud-button-root mud-button-outlined mud-button-primary mud-button-small" @onclick="TryTranslationAsync"
+                      title="@L["Opens the translate-content dialog with this content, into the other language"]">@L["Try translating"]</button>
+            </div>
+            @if (_translated is not null)
+            {
+              <h2 class="mud-typography mud-typography-subtitle2">@L["What the translator returned"]</h2>
+              <pre class="mn-result">@_translated</pre>
+            }
           </section>
         }
       </div>
@@ -478,6 +490,7 @@
   private bool _jsonTab;
   private string _jsonText = "";
   private string? _tried;
+  private string? _translated;
 
   private ContentEditorState? _preview;
   private string? _previewSignature;
@@ -491,6 +504,7 @@
     if (_s is not null && FieldKey is not null && FieldKey == _detail?.Key) return; // we just created it and moved here
     _jsonTab = false;
     _tried = null;
+    _translated = null;
     await RunAsync(async () =>
     {
       _catalog ??= await Api.GetSchemaOrgCatalogAsync();
@@ -756,5 +770,19 @@
     var result = await ModuleDialogs.ShowAsync("Module.DynamicFields/edit-content", new { field = detail.Key, content, style });
     if (result.Canceled) await MudTail.ToastAsync(L["The editor was canceled."], "info");
     else _tried = JsonSerializer.Serialize(result.Data, Json);
+  }
+
+  /// <summary>Opens the translate dialog by its id, as Contents would: the tried content as the root, into the other language.</summary>
+  private async Task TryTranslationAsync()
+  {
+    if (_tried is null) return;
+    using var last = JsonDocument.Parse(_tried);
+    var tried = last.RootElement;
+    var root = new { field = tried.GetProperty("field").GetString(), fieldVersion = tried.GetProperty("version").GetInt32(),
+      content = tried.GetProperty("content").Clone(), style = tried.GetProperty("style").Clone() };
+    var language = System.Globalization.CultureInfo.CurrentUICulture.TwoLetterISOLanguageName == "ar" ? "en" : "ar";
+    JsonElement? translation = _translated is null ? null : JsonDocument.Parse(_translated).RootElement.Clone();
+    var result = await ModuleDialogs.ShowAsync("Module.DynamicFields/translate-content", new { root, language, translation });
+    if (!result.Canceled) _translated = JsonSerializer.Serialize(result.Data, Json);
   }
 }

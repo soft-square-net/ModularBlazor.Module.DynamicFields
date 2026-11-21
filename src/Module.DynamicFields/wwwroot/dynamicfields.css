@@ -82,3 +82,11 @@
 .df-starters .mn-chip { margin-inline-start: 0; }
 .df-starter-text { flex-basis: 100%; padding-inline-start: 28px; font-size: 0.8125rem; }
 .df-starter-installed { opacity: .75; }
+/* The translate-content dialog (Module.DynamicFields/translate-content): the source beside its translation. */
+.df-unit { padding-block: 8px; border-bottom: 1px solid var(--mud-palette-lines-default, rgba(127,127,127,.3)); }
+.df-unit-head { display: flex; flex-wrap: wrap; gap: 4px 8px; align-items: center; margin-bottom: 6px; }
+.df-unit-head .mn-chip { margin-inline-start: 0; }
+.df-unit-pair { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; align-items: start; }
+.df-unit-pair + .df-unit-pair { margin-top: 6px; }
+.df-source { padding: 8px 12px; border-radius: var(--mud-default-borderradius, 8px); background: var(--mud-palette-background-gray, rgba(127,127,127,.08)); white-space: pre-wrap; overflow-wrap: anywhere; }
+@media (max-width: 640px) { .df-unit-pair { grid-template-columns: 1fr; } }

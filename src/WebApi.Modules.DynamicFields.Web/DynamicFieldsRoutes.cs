@@ -29,6 +29,8 @@ public sealed class DynamicFieldsRoutes : ICarterModule
 
         Content.Validate.Map(content);
         Content.ValidateNode.Map(content);
+        Content.CheckTranslation.Map(content);
+        Content.ApplyTranslations.Map(content);
 
         var catalog = app.MapGroup("/catalog").WithTags("Catalog").AddEndpointFilter<DynamicFieldsProblemsFilter>();
 
