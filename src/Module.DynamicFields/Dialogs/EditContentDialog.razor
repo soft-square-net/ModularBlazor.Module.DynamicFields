@@ -22,9 +22,9 @@
   }
 </div>
 <div class="mud-dialog-actions">
-  <button type="button" class="mud-button-root mud-button-text mud-button-medium" @onclick="Dialog.Cancel">Cancel</button>
+  <button type="button" class="mud-button-root mud-button-text mud-button-medium" @onclick="Dialog.Cancel">@L["Cancel"]</button>
   <button type="button" class="mud-button-root mud-button-filled mud-button-primary mud-button-medium"
-          disabled="@(_state is null || Busy)" @onclick="SaveAsync">Save</button>
+          disabled="@(_state is null || Busy)" @onclick="SaveAsync">@L["Save"]</button>
 </div>
 
 @code {
@@ -46,7 +46,7 @@
     var parameters = Dialog.GetParameters<Parameters>();
     if (string.IsNullOrWhiteSpace(parameters?.Field))
     {
-      Error = "No field to edit: open the dialog with { field: \"<key>\" }.";
+      Error = L["No field to edit: open the dialog with {{ field: \"<key>\" }}."];
       StateHasChanged();
       return;
     }

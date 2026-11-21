@@ -1,5 +1,6 @@
 @using soft.square.net.Module.DynamicFields.Dialogs
 @inject IModuleDialogs ModuleDialogs
+@inject IStringLocalizer<ContentEditorForm> L
 
 @*
   The form of one content node: a control per value of the field and a select per style. The edit-content dialog shows
@@ -19,7 +20,7 @@
 }
 @if (State.Values.Count == 0 && State.Styles.Count == 0)
 {
-  <p class="mud-typography mud-typography-body2 mn-muted">This field has no values or style yet.</p>
+  <p class="mud-typography mud-typography-body2 mn-muted">@L["This field has no values or style yet."]</p>
 }
 
 @foreach (var value in State.Values)
@@ -55,14 +56,14 @@
               <input id="@(index == 0 ? id : null)" class="mud-input-slot" type="@InputType(p.Kind)" step="@Step(p.Kind)" maxlength="@p.MaxLength"
                      value="@value.Items[index]" @onchange="e => value.Items[index] = e.Value?.ToString() ?? string.Empty" placeholder="@Placeholder(p.Kind)" />
             </div>
-            <button type="button" class="mud-button-root mud-button-text mud-button-small" aria-label="Remove" @onclick="() => value.Items.RemoveAt(index)">✕</button>
+            <button type="button" class="mud-button-root mud-button-text mud-button-small" aria-label="@L["Remove"]" @onclick="() => value.Items.RemoveAt(index)">✕</button>
           </div>
         }
         <div class="df-item-actions">
-          <button type="button" class="mud-button-root mud-button-text mud-button-primary mud-button-small" @onclick="() => value.Items.Add(string.Empty)">Add</button>
+          <button type="button" class="mud-button-root mud-button-text mud-button-primary mud-button-small" @onclick="() => value.Items.Add(string.Empty)">@L["Add"]</button>
           @if (Picker(p.Kind) is { } picker && ModuleDialogs.IsAvailable(picker))
           {
-            <button type="button" class="mud-button-root mud-button-text mud-button-primary mud-button-small" @onclick="() => PickAsync(value, picker)">Choose…</button>
+            <button type="button" class="mud-button-root mud-button-text mud-button-primary mud-button-small" @onclick="() => PickAsync(value, picker)">@L["Choose…"]</button>
           }
         </div>
       }
@@ -93,7 +94,7 @@
           </div>
           @if (Picker(p.Kind) is { } picker && ModuleDialogs.IsAvailable(picker))
           {
-            <button type="button" class="mud-button-root mud-button-text mud-button-primary mud-button-small" @onclick="() => PickAsync(value, picker)">Choose…</button>
+            <button type="button" class="mud-button-root mud-button-text mud-button-primary mud-button-small" @onclick="() => PickAsync(value, picker)">@L["Choose…"]</button>
           }
         </div>
       }
@@ -112,7 +113,7 @@
 @if (State.Styles.Count > 0)
 {
   <details class="df-style" open="@StyleOpen">
-    <summary class="mud-typography mud-typography-subtitle2">Style</summary>
+    <summary class="mud-typography mud-typography-subtitle2">@L["Style"]</summary>
     @foreach (var style in State.Styles)
     {
       var s = style.Property;
@@ -121,7 +122,7 @@
         <label class="mud-input-label" for="@id">@s.Label</label>
         <div class="mud-input-wrapper mud-input-wrapper--select">
           <select id="@id" class="mud-input-slot" @bind="style.Base">
-            <option value="">@(s.Default is { } d ? $"Default ({d})" : "Default")</option>
+            <option value="">@(s.Default is { } d ? L["Default ({0})", d] : L["Default"])</option>
             @foreach (var token in s.Values)
             {
               <option value="@token">@token</option>
@@ -130,7 +131,7 @@
         </div>
         @if (style.Responsive)
         {
-          <label class="mn-check"><input type="checkbox" @bind="style.ByBreakpoint" /> Different on wider screens</label>
+          <label class="mn-check"><input type="checkbox" @bind="style.ByBreakpoint" /> @L["Different on wider screens"]</label>
           @if (style.ByBreakpoint)
           {
             <div class="df-breakpoints">
@@ -140,7 +141,7 @@
                   <span>@point</span>
                   <select class="mud-input-slot" value="@style.PerBreakpoint.GetValueOrDefault(point, "")"
                           @onchange="e => style.PerBreakpoint[point] = e.Value?.ToString() ?? string.Empty">
-                    <option value="">as smaller</option>
+                    <option value="">@L["as smaller"]</option>
                     @foreach (var token in s.Values)
                     {
                       <option value="@token">@token</option>
@@ -232,20 +233,20 @@
     _ => null
   };
 
-  private static string? Placeholder(PropertyKind kind) => kind switch
+  private string? Placeholder(PropertyKind kind) => kind switch
   {
     PropertyKind.Url => "https://…",
-    PropertyKind.Asset => "asset id",
-    PropertyKind.Keyword => "keyword id",
-    PropertyKind.Term => "term id",
+    PropertyKind.Asset => L["asset id"],
+    PropertyKind.Keyword => L["keyword id"],
+    PropertyKind.Term => L["term id"],
     _ => null
   };
 
-  private static string? Help(FieldProperty p)
+  private string? Help(FieldProperty p)
   {
     var parts = new List<string>();
     if (p.HelpText is { Length: > 0 } help) parts.Add(help);
-    if (p.MaxLength is { } max) parts.Add($"Up to {max} characters.");
+    if (p.MaxLength is { } max) parts.Add(L["Up to {0} characters.", max]);
     if (p.Minimum is { } min && p.Maximum is { } top) parts.Add($"{min} to {top}.");
     if (p.SchemaProperty is { Length: > 0 } schema) parts.Add($"schema.org: {schema}");
     return string.Join(" ", parts);
