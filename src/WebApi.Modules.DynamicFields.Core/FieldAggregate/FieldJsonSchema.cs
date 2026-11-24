@@ -101,6 +101,7 @@ public static class FieldJsonSchema
         if (p.MaxLength is { } max) schema["maxLength"] = max;
         if (p.Minimum is { } low) schema["minimum"] = low;
         if (p.Maximum is { } high) schema["maximum"] = high;
+        if (p.Accept is { Count: > 0 } accept) schema["x-accept"] = new JsonArray([.. accept.Select(a => (JsonNode)a)]);
         return schema;
     }
 

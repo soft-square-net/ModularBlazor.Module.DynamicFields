@@ -250,10 +250,26 @@
                         <div class="mud-input-wrapper"><textarea id="@($"{id}-options")" class="mud-input-slot" rows="3" @bind="r.OptionsText" @bind:event="oninput" placeholder="@L["One per line"]"></textarea></div>
                       </div>
                     }
+                    @if (r.Kind == PropertyKind.Asset)
+                    {
+                      <div class="mud-input-control">
+                        <label class="mud-input-label" for="@($"{id}-accept")">@L["Accepted files"]</label>
+                        <div class="mud-input-wrapper"><input id="@($"{id}-accept")" class="mud-input-slot" @bind="r.AcceptText" @bind:event="oninput" placeholder="@L["Any file"]" /></div>
+                        <p class="mud-input-helper-text">@L["Content types, families or extensions, separated by commas: image/*, video/mp4, .pdf. Empty: any file."]</p>
+                      </div>
+                      <div class="df-accept-presets" role="group" aria-label="@L["Accepted files"]">
+                        @foreach (var preset in AcceptPresets)
+                        {
+                          var on = r.AcceptList.SequenceEqual(preset.Accept);
+                          <button type="button" class="mn-chip" aria-pressed="@(on ? "true" : "false")"
+                                  @onclick="() => SetAccept(r, preset.Accept)">@L[preset.Label]</button>
+                        }
+                      </div>
+                    }
                     @if (r.Kind is PropertyKind.Asset or PropertyKind.Keyword or PropertyKind.Term)
                     {
                       <p class="mud-typography mud-typography-body2 mn-muted">
-                        @(r.Kind switch { PropertyKind.Asset => L["Authors pick it with the Media module's picker when it is installed, or type its id."], PropertyKind.Keyword => L["Authors pick it with the Keywords module's picker when it is installed, or type its id."], _ => L["Authors pick it with the Taxonomies module's picker when it is installed, or type its id."] })
+                        @(r.Kind switch { PropertyKind.Asset => L["Authors choose it in the file browser of the Storage module (or the Media module's picker) when it is installed, or type its id."], PropertyKind.Keyword => L["Authors pick it with the Keywords module's picker when it is installed, or type its id."], _ => L["Authors pick it with the Taxonomies module's picker when it is installed, or type its id."] })
                       </p>
                     }
                     @if (r.IsLookup)
@@ -593,7 +609,8 @@
 
   private void AddFromSchema(SchemaOrgProperty p, bool open)
   {
-    var row = FieldBuilderState.PropertyRow.From(p, FieldBuilderState.FreeKey(p.Name, _s!.Properties.Select(r => r.Key)));
+    var row = FieldBuilderState.PropertyRow.From(p, FieldBuilderState.FreeKey(p.Name, _s!.Properties.Select(r => r.Key)),
+      TypeOf(_s.SchemaType)?.ContentAccept);
     row.Open = open;
     _s.Properties.Add(row);
   }
@@ -614,6 +631,18 @@
     Open = true
   });
 
+  /// <summary>The accept lists offered as one click on an Asset value.</summary>
+  private static readonly (string Label, string[] Accept)[] AcceptPresets =
+  [
+    ("Any file", []),
+    ("Images", ["image/*"]),
+    ("Video", ["video/*"]),
+    ("Audio", ["audio/*"]),
+    ("Documents", [".pdf", ".doc", ".docx", ".xls", ".xlsx", ".ppt", ".pptx", ".odt", ".txt"])
+  ];
+
+  private static void SetAccept(FieldBuilderState.PropertyRow row, string[] accept) => row.AcceptText = string.Join(", ", accept);
+
   private static string Humanize(string type) =>
     string.Concat(type.Select((c, i) => i > 0 && char.IsUpper(c) && !char.IsUpper(type[i - 1]) ? $" {char.ToLowerInvariant(c)}" : c.ToString()));
 
@@ -628,7 +657,7 @@
     PropertyKind.DateTime => "Date and time",
     PropertyKind.Url => "Web address",
     PropertyKind.Choice => "Choice",
-    PropertyKind.Asset => "Media",
+    PropertyKind.Asset => "File or media",
     PropertyKind.Keyword => "Keyword",
     PropertyKind.Term => "Taxonomy term",
     PropertyKind.Lookup => "Item of a list",

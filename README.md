@@ -8,7 +8,8 @@ A field is one kind of content (a news post, a paragraph, an image, an album) as
 [schema.org](https://schema.org/CreativeWork) type, with:
 
 - its **values** (`properties`): key, label, kind (Text, RichText, Integer, Decimal, Boolean, Date, DateTime, Url, Choice,
-  Asset, Keyword, Term), required, list or single, limits, and the schema.org property it is published as;
+  Asset, Keyword, Term, Lookup), required, list or single, limits, and the schema.org property it is published as; an
+  Asset (a file) may say which files it takes (`accept`: `image/*`, `video/mp4`, `.pdf`, ...);
 - its **style** choices: theme tokens, optionally per breakpoint (`{ "base": "full", "md": "half" }`), never free CSS;
 - the fields it may contain as **children**, with counts. Fields are reusable: an image can be a child of a post, an
   album and a reportage;
@@ -71,7 +72,9 @@ The builder works from a curated part of schema.org (`SchemaOrgCatalog` in Core)
 editorial site publishes (articles and news, media, pages and galleries, quotations, reviews and fact checks, how-tos
 and recipes, books, ...), each with the properties search engines and AI read. Every property suggests a value kind
 (an image is an Asset, keywords are Keyword concepts, a section is a Taxonomy term), a label, help and limits; every type
-suggests the properties to start with. The supported types of a field are exactly the catalog's. `StylePresets` holds
+suggests the properties to start with. Image properties (`image`, `thumbnailUrl`) accept `image/*`, and a media type's
+`contentUrl` accepts its media (`ImageObject`: `image/*`, `VideoObject`: `video/*`, `AudioObject`: `audio/*`; a plain
+`MediaObject`: any file). The supported types of a field are exactly the catalog's. `StylePresets` holds
 common style choices (width, alignment, spacing, tone, text size, heading level, aspect ratio, columns, layout).
 
 The **starter library** (`StarterFields`) is ready-made fields built on it, with the values search engines ask for
@@ -115,9 +118,15 @@ It loads the field version (the newest when none is given) and builds one contro
 text, number, checkbox, date, date and time, URL, a select (or checkboxes when multiple) for a choice, and a list with
 Add and remove for multiple values. Style values are selects of the field's tokens; a responsive one can be set per
 breakpoint. Save checks required values, then asks `POST /content/validate-node`, and shows each issue under its value.
-Asset, Keyword and Term values are ids typed by hand, with a Pick button when `Module.Media/pick-asset`,
-`Module.Keywords/pick-concepts` or `Module.Taxonomies/pick-terms` is installed (parameters `{ multiple, selected }`,
-result `{ ids }`). Rich text is a plain textarea for now. The form itself is `ContentEditorForm`, which the builder's
+Asset, Keyword and Term values are ids, with a Choose button when the user's catalog has a picker dialog for them
+(parameters `{ multiple, selected, accept }`, result `{ ids, files? }`); without one, the id is typed:
+
+- **Asset:** `Module.Media/pick-asset` when a media module is installed, else the Storage module's file browser,
+  `Module.Storage/pick-files`, limited to the property's `accept` list. The chosen file shows by name, type and size
+  (an image in a public folder as a thumbnail). The builder sets `accept` per Asset value, typed or with one click
+  (Any file, Images, Video, Audio, Documents);
+- **Keyword:** `Module.Keywords/pick-concepts`; **Term:** `Module.Taxonomies/pick-terms`.
+Rich text is a plain textarea for now. The form itself is `ContentEditorForm`, which the builder's
 preview also shows.
 
 ### Content translation

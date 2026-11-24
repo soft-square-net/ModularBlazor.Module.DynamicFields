@@ -110,6 +110,12 @@ public sealed class FieldBuilderState
         public string OptionsText { get; set; } = "";
         public LookupRow Lookup { get; set; } = new();
 
+        /// <summary>
+        /// The files an Asset value takes, as typed: content types, families or extensions separated by commas
+        /// (<c>image/*</c>, <c>.pdf</c>); empty: any file.
+        /// </summary>
+        public string AcceptText { get; set; } = "";
+
         /// <summary>Whether the row's details are shown in the builder.</summary>
         public bool Open { get; set; }
 
@@ -132,11 +138,15 @@ public sealed class FieldBuilderState
             Minimum = p.Minimum,
             Maximum = p.Maximum,
             OptionsText = string.Join("\n", p.Options ?? []),
-            Lookup = LookupRow.From(p.Lookup)
+            Lookup = LookupRow.From(p.Lookup),
+            AcceptText = string.Join(", ", p.Accept ?? [])
         };
 
-        /// <summary>A value made from a schema.org property, with the kind and limits the catalog suggests.</summary>
-        public static PropertyRow From(SchemaOrgProperty p, string key) => new()
+        /// <summary>
+        /// A value made from a schema.org property, with the kind and limits the catalog suggests.
+        /// <paramref name="contentAccept"/>: the files the field's type takes in contentUrl (a VideoObject's are videos).
+        /// </summary>
+        public static PropertyRow From(SchemaOrgProperty p, string key, IReadOnlyList<string>? contentAccept = null) => new()
         {
             Key = key,
             Label = p.Label,
@@ -147,7 +157,8 @@ public sealed class FieldBuilderState
             MaxLength = p.MaxLength,
             Minimum = p.Minimum,
             Maximum = p.Maximum,
-            OptionsText = string.Join("\n", p.Options ?? [])
+            OptionsText = string.Join("\n", p.Options ?? []),
+            AcceptText = string.Join(", ", (p.Name == "contentUrl" ? contentAccept : null) ?? p.Accept ?? [])
         };
 
         /// <summary>The API's property; limits that do not fit the kind are dropped, not sent.</summary>
@@ -166,8 +177,12 @@ public sealed class FieldBuilderState
             Minimum = IsNumber ? Minimum : null,
             Maximum = IsNumber ? Maximum : null,
             Options = Kind == PropertyKind.Choice ? SplitList(OptionsText) : null,
-            Lookup = IsLookup ? Lookup.ToModel(Multiple) : null
+            Lookup = IsLookup ? Lookup.ToModel(Multiple) : null,
+            Accept = Kind == PropertyKind.Asset && AcceptList is { Count: > 0 } accept ? accept : null
         };
+
+        /// <summary>The accept list as typed, lowercase, without blanks or repeats.</summary>
+        public List<string> AcceptList => [.. SplitList(AcceptText.ToLowerInvariant())];
     }
 
     /// <summary>

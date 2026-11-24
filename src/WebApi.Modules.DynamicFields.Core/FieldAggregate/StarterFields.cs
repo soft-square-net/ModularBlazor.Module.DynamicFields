@@ -70,7 +70,7 @@ public static class StarterFields
             "A quotation and who said it.")),
 
         new("block.image", new FieldDraft("Image", "ImageObject", false,
-            [P("image", "contentUrl", "Image", required: true, help: "The image file."),
+            [P("image", "contentUrl", "Image", required: true, help: "The image file.") with { Accept = AcceptFor("ImageObject", "contentUrl") },
              P("alt", "description", "Alternative text", required: true,
                help: "What the image shows, for people who cannot see it and for search engines.", maxLength: 250),
              P("caption", "caption", "Caption", maxLength: 300),
@@ -79,7 +79,7 @@ public static class StarterFields
             "An image with its alternative text, caption and credit.")),
 
         new("block.video", new FieldDraft("Video", "VideoObject", false,
-            [P("video", "contentUrl", "Video", required: true, help: "The video file."),
+            [P("video", "contentUrl", "Video", required: true, help: "The video file.") with { Accept = AcceptFor("VideoObject", "contentUrl") },
              P("title", "name", "Title", required: true, help: "The video's title.", maxLength: 110),
              P("description", "description", "Description", required: true, maxLength: 300),
              P("thumbnail", "thumbnailUrl", "Thumbnail", required: true, help: "Search engines show it; Google requires it."),
@@ -90,7 +90,7 @@ public static class StarterFields
             "A video with what search engines need to show it.")),
 
         new("block.audio", new FieldDraft("Audio", "AudioObject", false,
-            [P("audio", "contentUrl", "Audio", required: true, help: "The audio file."),
+            [P("audio", "contentUrl", "Audio", required: true, help: "The audio file.") with { Accept = AcceptFor("AudioObject", "contentUrl") },
              P("title", "name", "Title", required: true, help: "The recording's title.", maxLength: 110),
              P("description", "description", "Description", maxLength: 300),
              P("duration"),
