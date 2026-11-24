@@ -256,6 +256,10 @@
                         @(r.Kind switch { PropertyKind.Asset => L["Authors pick it with the Media module's picker when it is installed, or type its id."], PropertyKind.Keyword => L["Authors pick it with the Keywords module's picker when it is installed, or type its id."], _ => L["Authors pick it with the Taxonomies module's picker when it is installed, or type its id."] })
                       </p>
                     }
+                    @if (r.IsLookup)
+                    {
+                      <LookupBindingEditor Row="r" Others="_s.Properties" Id="@id" />
+                    }
                   </div>
                 }
               </div>
@@ -627,6 +631,7 @@
     PropertyKind.Asset => "Media",
     PropertyKind.Keyword => "Keyword",
     PropertyKind.Term => "Taxonomy term",
+    PropertyKind.Lookup => "Item of a list",
     _ => kind.ToString()
   }];
 

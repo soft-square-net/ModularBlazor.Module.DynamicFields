@@ -129,6 +129,8 @@ public static class ContentTreeValidator
             {
                 if (value.ValueKind != JsonValueKind.Array) { issues.Add(new(at, $"{property.Label} is a list.")); continue; }
                 if (property.Required && value.GetArrayLength() == 0) issues.Add(new(at, $"{property.Label} needs at least one value."));
+                if (property.Lookup?.MaxSelections is { } most && value.GetArrayLength() > most)
+                    issues.Add(new(at, $"{property.Label} has at most {most} values."));
                 var i = 0;
                 foreach (var item in value.EnumerateArray()) Value(property, item, $"{at}/{i++}", issues);
             }
@@ -180,7 +182,56 @@ public static class ContentTreeValidator
                 if (!String(value, out var id) || id.Trim().Length is 0 or > MaxIdLength)
                     issues.Add(new(at, $"{p.Label} is an id of 1 to {MaxIdLength} characters."));
                 return;
+            case PropertyKind.Lookup:
+                LookupValue(p, value, at, issues);
+                return;
         }
+    }
+
+    public const int MaxLookupTextLength = 500;
+
+    /// <summary>
+    /// The shape of a lookup value, <c>{ key, text, path? }</c>. Whether the key exists in the lookup, and its parent and
+    /// path, is checked against the owner (ValidateContent's second step), not here.
+    /// </summary>
+    private static void LookupValue(FieldProperty p, JsonElement value, string at, List<ContentIssue> issues)
+    {
+        var recursive = p.Lookup?.Recursive == true;
+        if (value.ValueKind != JsonValueKind.Object)
+        {
+            issues.Add(new(at, $"{p.Label} is an item of a list: {{ \"key\": …, \"text\": … }}."));
+            return;
+        }
+        Item(value, at, p.Label, issues);
+        foreach (var member in value.EnumerateObject())
+        {
+            if (member.Name is "key" or "text" || (member.Name == "path" && recursive)) continue;
+            issues.Add(new($"{at}/{Escape(member.Name)}", $"{p.Label} has no '{member.Name}'."));
+        }
+        if (!recursive || !value.TryGetProperty("path", out var path) || path.ValueKind == JsonValueKind.Null) return;
+
+        var maxDepth = p.Lookup!.MaxDepth;
+        if (path.ValueKind != JsonValueKind.Array || path.GetArrayLength() >= maxDepth)
+        {
+            issues.Add(new($"{at}/path", $"{p.Label}'s path is a list of at most {maxDepth - 1} items above it."));
+            return;
+        }
+        var i = 0;
+        foreach (var step in path.EnumerateArray())
+        {
+            var stepAt = $"{at}/path/{i++}";
+            if (step.ValueKind != JsonValueKind.Object) { issues.Add(new(stepAt, $"{p.Label}'s path holds items {{ key, text }}.")); continue; }
+            Item(step, stepAt, p.Label, issues);
+        }
+    }
+
+    private static void Item(JsonElement item, string at, string label, List<ContentIssue> issues)
+    {
+        if (!item.TryGetProperty("key", out var key) || !String(key, out var k) || k.Trim().Length is 0 or > MaxIdLength)
+            issues.Add(new($"{at}/key", $"{label}: the key is text of 1 to {MaxIdLength} characters."));
+        if (item.TryGetProperty("text", out var text) && text.ValueKind != JsonValueKind.Null
+            && (!String(text, out var t) || t.Length > MaxLookupTextLength))
+            issues.Add(new($"{at}/text", $"{label}: the text is at most {MaxLookupTextLength} characters."));
     }
 
     private static void Style(FieldSnapshot field, JsonElement style, string path, List<ContentIssue> issues)

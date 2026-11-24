@@ -94,12 +94,34 @@ public static class FieldJsonSchema
                 ["x-reference"] = p.Kind.ToString().ToLowerInvariant()
             },
             PropertyKind.RichText => new JsonObject { ["type"] = "string", ["contentMediaType"] = "text/html" },
+            PropertyKind.Lookup => Lookup(p.Lookup!),
             _ => new JsonObject { ["type"] = "string" }
         };
         if (p.MinLength is { } min) schema["minLength"] = min;
         if (p.MaxLength is { } max) schema["maxLength"] = max;
         if (p.Minimum is { } low) schema["minimum"] = low;
         if (p.Maximum is { } high) schema["maximum"] = high;
+        return schema;
+    }
+
+    /// <summary><c>{ key, text, path? }</c>; <c>x-lookup</c> names the lookup (GET /api/lookups lists them).</summary>
+    private static JsonObject Lookup(LookupBinding b)
+    {
+        JsonObject Item() => new()
+        {
+            ["type"] = "object",
+            ["properties"] = new JsonObject
+            {
+                ["key"] = new JsonObject { ["type"] = "string", ["minLength"] = 1, ["maxLength"] = ContentValidation.ContentTreeValidator.MaxIdLength },
+                ["text"] = new JsonObject { ["type"] = "string", ["maxLength"] = ContentValidation.ContentTreeValidator.MaxLookupTextLength }
+            },
+            ["required"] = new JsonArray("key"),
+            ["additionalProperties"] = false
+        };
+        var schema = Item();
+        if (b.Recursive)
+            ((JsonObject)schema["properties"]!)["path"] = new JsonObject { ["type"] = "array", ["items"] = Item(), ["maxItems"] = b.MaxDepth - 1 };
+        schema["x-lookup"] = b.Key;
         return schema;
     }
 }

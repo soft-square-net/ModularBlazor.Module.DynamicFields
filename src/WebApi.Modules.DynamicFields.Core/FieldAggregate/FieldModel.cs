@@ -43,7 +43,13 @@ public enum PropertyKind
     Keyword,
 
     /// <summary>The id of a Taxonomies term (JSON string).</summary>
-    Term
+    Term,
+
+    /// <summary>
+    /// An item of another module's lookup, <see cref="FieldProperty.Lookup"/> (JSON object: <c>{ key, text, path? }</c>).
+    /// The key is the value; the text is kept so the content shows without asking the owner.
+    /// </summary>
+    Lookup
 }
 
 /// <summary>
@@ -51,7 +57,8 @@ public enum PropertyKind
 /// label can). <see cref="SchemaProperty"/> is the schema.org property the value is published as (headline, caption,
 /// contentUrl, ...), which is what makes the content readable by search engines and AI. <see cref="Translatable"/>:
 /// whether the value has a translation per language (Text and RichText only; null means yes for them). Say false for
-/// text that is not language, such as a code or a slug.
+/// text that is not language, such as a code or a slug. <see cref="Lookup"/>: what a Lookup property picks from (that
+/// kind only).
 /// </summary>
 public sealed record FieldProperty(
     string Key,
@@ -66,7 +73,8 @@ public sealed record FieldProperty(
     decimal? Minimum = null,
     decimal? Maximum = null,
     IReadOnlyList<string>? Options = null,
-    bool? Translatable = null);
+    bool? Translatable = null,
+    LookupBinding? Lookup = null);
 
 /// <summary>
 /// One style value of a field: a choice from <see cref="Values"/> (theme tokens such as "wide", "md", "start"), never

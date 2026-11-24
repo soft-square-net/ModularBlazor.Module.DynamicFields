@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using soft.square.net.ModularBlazor.Abstractions.Lookups;
 using soft.square.net.WebApi.Modules.DynamicFields.Client;
 
 namespace soft.square.net.Module.DynamicFields.Dialogs;
@@ -8,7 +9,8 @@ namespace soft.square.net.Module.DynamicFields.Dialogs;
 /// <summary>
 /// What the edit dialog edits: one text per value (lists: one per item) and one token per style, filled from a node's
 /// content and style JSON and turned back into JSON on save. Values travel as typed JSON where they parse; one that does
-/// not (a number with letters) is sent as typed, so the server's check reports it at its path.
+/// not (a number with letters) is sent as typed, so the server's check reports it at its path. Lookup values are items
+/// ({ key, text }, a recursive one with its path) and travel as objects.
 /// </summary>
 public sealed class ContentEditorState
 {
@@ -55,6 +57,25 @@ public sealed class ContentEditorState
         return known ? $"/{parts[0]}/{key}" : null;
     }
 
+    /// <summary>
+    /// After a lookup value changes: empties the values that depend on it (their parent property), all the way down,
+    /// since a city of the old country is not a city of the new one.
+    /// </summary>
+    public void ClearDependents(ValueState changed)
+    {
+        foreach (var dependent in Values.Where(v => v.Lookup?.ParentProperty == changed.Property.Key && v != changed))
+        {
+            if (!dependent.HasValue) continue;
+            dependent.Picked = null;
+            dependent.Picks = [];
+            ClearDependents(dependent);
+        }
+    }
+
+    /// <summary>The key a dependent lookup is filtered by: its parent property's value, or null while that is empty.</summary>
+    public string? ParentKey(ValueState value) =>
+        value.Lookup?.ParentProperty is { } parent ? Values.FirstOrDefault(v => v.Property.Key == parent)?.Picked?.Key : null;
+
     private static JsonElement? Read(JsonElement? obj, string key) =>
         obj is { ValueKind: JsonValueKind.Object } o && o.TryGetProperty(key, out var v) && v.ValueKind != JsonValueKind.Null ? v : null;
 
@@ -64,7 +85,21 @@ public sealed class ContentEditorState
         public ValueState(FieldProperty property, JsonElement? value)
         {
             Property = property;
-            if (Multiple)
+            if (IsLookup)
+            {
+                if (Multiple)
+                {
+                    if (value is { ValueKind: JsonValueKind.Array } list) Picks = [.. list.EnumerateArray().Select(ToItem).OfType<LookupItem>()];
+                }
+                else if (value is { } one && ToItem(one) is { } item)
+                {
+                    if (Lookup?.Recursive == true)
+                        Path = [.. (one.TryGetProperty("path", out var path) && path.ValueKind == JsonValueKind.Array
+                            ? path.EnumerateArray().Select(ToItem).OfType<LookupItem>() : []), item];
+                    else Picked = item;
+                }
+            }
+            else if (Multiple)
             {
                 if (value is { ValueKind: JsonValueKind.Array } array) Items.AddRange(array.EnumerateArray().Select(ToText));
                 if (!IsChoice && Items.Count == 0) Items.Add("");
@@ -77,15 +112,43 @@ public sealed class ContentEditorState
         public bool Multiple => Property.Multiple == true;
         public bool Required => Property.Required == true;
         public bool IsChoice => Property.Kind == PropertyKind.Choice;
+        public bool IsLookup => Property.Kind == PropertyKind.Lookup && Property.Lookup is not null;
+        public LookupBinding? Lookup => Property.Lookup;
+
+        /// <summary>A single lookup value.</summary>
+        public LookupItem? Picked { get; set; }
+
+        /// <summary>A multiple lookup's values.</summary>
+        public IReadOnlyList<LookupItem> Picks { get; set; } = [];
+
+        /// <summary>A recursive lookup's value: the path from the root, its last item being the value.</summary>
+        public IReadOnlyList<LookupItem> Path { get; set; } = [];
+
+        /// <summary>What a picker shows as selected.</summary>
+        public IReadOnlyList<LookupItem> Selection => Multiple ? Picks : Picked is { } one ? [one] : [];
 
         public string Text { get; set; } = "";
         public bool Flag { get; set; }
         public List<string> Items { get; } = [];
 
-        public bool HasValue => Multiple ? Items.Any(i => i.Trim().Length > 0) : Property.Kind == PropertyKind.Boolean || Text.Trim().Length > 0;
+        public bool HasValue => IsLookup
+            ? Multiple ? Picks.Count > 0 : Lookup!.Recursive == true ? Path.Count > 0 : Picked is not null
+            : Multiple ? Items.Any(i => i.Trim().Length > 0) : Property.Kind == PropertyKind.Boolean || Text.Trim().Length > 0;
 
         public JsonNode? ToJson()
         {
+            if (IsLookup)
+            {
+                if (Multiple) return Picks.Count == 0 ? null : new JsonArray([.. Picks.Select(Node)]);
+                if (Lookup!.Recursive == true)
+                {
+                    if (Path.Count == 0) return null;
+                    var leaf = Node(Path[^1]);
+                    if (Path.Count > 1) leaf["path"] = new JsonArray([.. Path.Take(Path.Count - 1).Select(Node)]);
+                    return leaf;
+                }
+                return Picked is null ? null : Node(Picked);
+            }
             if (Property.Kind == PropertyKind.Boolean && !Multiple) return Flag;
             if (!Multiple) return Text.Trim().Length == 0 ? null : Item(Text);
             var items = Items.Where(i => i.Trim().Length > 0).Select(Item).ToArray();
@@ -106,6 +169,13 @@ public sealed class ContentEditorState
                 _ => t
             };
         }
+
+        private static JsonObject Node(LookupItem item) => new() { ["key"] = item.Key, ["text"] = item.Text };
+
+        private static LookupItem? ToItem(JsonElement v) =>
+            v.ValueKind == JsonValueKind.Object && v.TryGetProperty("key", out var key) && key.ValueKind == JsonValueKind.String
+                ? new LookupItem(key.GetString()!, v.TryGetProperty("text", out var text) && text.ValueKind == JsonValueKind.String ? text.GetString()! : key.GetString()!)
+                : null;
 
         private string ToText(JsonElement v) => v.ValueKind switch
         {

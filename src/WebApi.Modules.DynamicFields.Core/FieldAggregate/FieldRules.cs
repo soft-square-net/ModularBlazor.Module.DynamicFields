@@ -16,6 +16,17 @@ public static partial class FieldRules
     public const int MaxChildRules = 50;
     public const int MaxOptions = 200;
     public const int OptionMaxLength = 100;
+    public const int LookupKeyMaxLength = 128;
+    public const int LookupMaxDepth = 10;
+    public const int LookupMaxPresetFilters = 10;
+    public const int LookupMaxFilterValues = 100;
+    public const int LookupFilterValueMaxLength = 200;
+    public const int LookupMaxSearchFields = 20;
+    public const int LookupMaxSelections = 500;
+
+    /// <summary>The filter operators a lookup understands.</summary>
+    public static IReadOnlyList<string> LookupOps { get; } =
+        ["eq", "ne", "contains", "startsWith", "gt", "gte", "lt", "lte", "between", "in", "isEmpty"];
 
     /// <summary>Lowercase, dot-separated: <c>post.news</c>, <c>block.image</c>, <c>block.pull-quote</c>.</summary>
     [GeneratedRegex("^[a-z][a-z0-9]*(?:[.-][a-z0-9]+)*$")]
@@ -32,6 +43,14 @@ public static partial class FieldRules
     /// <summary>A client module dialog id, <c>"{module id}/{name}"</c>.</summary>
     [GeneratedRegex("^[A-Za-z][A-Za-z0-9._-]*/[A-Za-z0-9._-]+$")]
     private static partial Regex DialogId();
+
+    /// <summary>A lookup key, <c>"{prefix}.{name}"</c>: <c>inventory.stock-items</c>, <c>geo.cities</c>.</summary>
+    [GeneratedRegex(@"^[A-Za-z0-9][A-Za-z0-9_-]*(?:\.[A-Za-z0-9][A-Za-z0-9_-]*)+$")]
+    private static partial Regex LookupKey();
+
+    /// <summary>A property name of a lookup's entity (a search or filter field): <c>Name</c>, <c>Category.Name</c>.</summary>
+    [GeneratedRegex(@"^[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)*$")]
+    private static partial Regex MemberName();
 
     public static string CheckKey(string? key)
     {
@@ -54,6 +73,7 @@ public static partial class FieldRules
         var properties = (draft.Properties ?? []).Select(CheckProperty).ToList();
         if (properties.Count > MaxProperties) throw new DomainException($"A field has at most {MaxProperties} properties.");
         Unique(properties.Select(p => p.Key), "property");
+        CheckLookupParents(properties);
 
         var style = (draft.Style ?? []).Select(CheckStyle).ToList();
         if (style.Count > MaxStyleProperties) throw new DomainException($"A field has at most {MaxStyleProperties} style properties.");
@@ -109,8 +129,116 @@ public static partial class FieldRules
         if (p.Translatable == true && !textual)
             throw new DomainException($"Property '{key}': only text (Text, RichText) has translations.");
 
+        LookupBinding? lookup = null;
+        if (p.Kind == PropertyKind.Lookup) lookup = CheckLookup(key, p.Multiple, p.Lookup);
+        else if (p.Lookup is not null)
+            throw new DomainException($"Property '{key}': only a Lookup property has a lookup.");
+
         return p with { Key = key, Label = label, HelpText = help, SchemaProperty = schemaProperty, Options = options,
-            Translatable = textual ? p.Translatable : null };
+            Translatable = textual ? p.Translatable : null, Lookup = lookup };
+    }
+
+    private static LookupBinding CheckLookup(string key, bool multiple, LookupBinding? b)
+    {
+        if (b is null) throw new DomainException($"Lookup '{key}' needs the lookup it picks from.");
+        var lookupKey = b.Key?.Trim() ?? "";
+        if (lookupKey.Length is 0 or > LookupKeyMaxLength || !LookupKey().IsMatch(lookupKey))
+            throw new DomainException($"Lookup '{key}': a lookup key is \"{{prefix}}.{{name}}\" (e.g. inventory.stock-items): '{b.Key}'.");
+        if (!Enum.IsDefined(b.Mode)) throw new DomainException($"Lookup '{key}' has an unknown mode.");
+        if (b.MinChars is < 0 or > 10) throw new DomainException($"Lookup '{key}': characters before searching are 0 to 10.");
+
+        IReadOnlyList<string>? searchFields = null;
+        if (b.SearchFields is { Count: > 0 })
+        {
+            searchFields = b.SearchFields.Select(f => f?.Trim() ?? "").ToList();
+            if (searchFields.Count > LookupMaxSearchFields || searchFields.Any(f => f.Length is 0 or > KeyMaxLength || !MemberName().IsMatch(f)))
+                throw new DomainException($"Lookup '{key}': at most {LookupMaxSearchFields} search fields, each a property name (e.g. Name).");
+            Unique(searchFields, $"search field of '{key}'");
+        }
+
+        var parent = string.IsNullOrWhiteSpace(b.ParentProperty) ? null : b.ParentProperty.Trim();
+        if (parent == key) throw new DomainException($"Lookup '{key}' cannot be its own parent.");
+        if (parent is not null && b.Mode == LookupMode.Picker)
+            throw new DomainException($"Lookup '{key}': a lookup that depends on another property is an autocomplete, not a picker.");
+
+        var rootKey = string.IsNullOrWhiteSpace(b.RootKey) ? null : b.RootKey.Trim();
+        if (b.Recursive)
+        {
+            if (multiple) throw new DomainException($"Lookup '{key}': a recursive lookup picks one value (a path), not a list.");
+            if (b.Mode == LookupMode.Picker) throw new DomainException($"Lookup '{key}': a recursive lookup is a cascade of autocompletes, not a picker.");
+            if (parent is not null) throw new DomainException($"Lookup '{key}': a recursive lookup starts at its root key, not at another property.");
+            if (b.MaxDepth is < 1 or > LookupMaxDepth) throw new DomainException($"Lookup '{key}': the depth is 1 to {LookupMaxDepth} levels.");
+            if (rootKey is { Length: > LookupFilterValueMaxLength })
+                throw new DomainException($"Lookup '{key}': the root key has at most {LookupFilterValueMaxLength} characters.");
+        }
+        else if (rootKey is not null || b.LeafOnly)
+            throw new DomainException($"Lookup '{key}': a root key and leaf-only belong to a recursive lookup.");
+
+        if (b.MaxSelections is not null && (!multiple || b.MaxSelections is < 1 or > LookupMaxSelections))
+            throw new DomainException($"Lookup '{key}': a maximum of selections is for a multiple lookup, 1 to {LookupMaxSelections}.");
+
+        var filters = (b.PresetFilters ?? []).Select(f => CheckPresetFilter(key, f)).ToList();
+        if (filters.Count > LookupMaxPresetFilters) throw new DomainException($"Lookup '{key}' has at most {LookupMaxPresetFilters} preset filters.");
+
+        return b with
+        {
+            Key = lookupKey, SearchFields = searchFields, ParentProperty = parent, RootKey = rootKey,
+            MaxDepth = b.Recursive ? b.MaxDepth : 5, PresetFilters = filters.Count == 0 ? null : filters,
+            AllowUserFilters = b.Mode == LookupMode.Picker && b.AllowUserFilters
+        };
+    }
+
+    private static LookupPresetFilter CheckPresetFilter(string key, LookupPresetFilter f)
+    {
+        if (f is null) throw new DomainException($"Lookup '{key}': a preset filter is missing.");
+        var field = f.Field?.Trim() ?? "";
+        if (field.Length is 0 or > KeyMaxLength || !MemberName().IsMatch(field))
+            throw new DomainException($"Lookup '{key}': a filter's field is a property name (e.g. Kind): '{f.Field}'.");
+        var op = f.Op ?? "";
+        if (!LookupOps.Contains(op))
+            throw new DomainException($"Lookup '{key}': '{f.Op}' is not a filter operator; use one of: {string.Join(", ", LookupOps)}.");
+
+        var value = f.Value?.Trim();
+        var values = f.Values?.Select(v => v?.Trim() ?? "").ToList();
+        if (value is { Length: > LookupFilterValueMaxLength } || values is { Count: > LookupMaxFilterValues }
+            || values?.Any(v => v.Length > LookupFilterValueMaxLength) == true)
+            throw new DomainException($"Lookup '{key}': a filter has at most {LookupMaxFilterValues} values of {LookupFilterValueMaxLength} characters.");
+
+        switch (op)
+        {
+            case "isEmpty":
+                return new(field, op);
+            case "in":
+                if (values is not { Count: > 0 }) throw new DomainException($"Lookup '{key}': filter '{field} in' needs values.");
+                return new(field, op, Values: values);
+            case "between":
+                if (values is not { Count: 2 }) throw new DomainException($"Lookup '{key}': filter '{field} between' needs two values.");
+                return new(field, op, Values: values);
+            default:
+                if (string.IsNullOrEmpty(value)) throw new DomainException($"Lookup '{key}': filter '{field} {op}' needs a value.");
+                return new(field, op, value);
+        }
+    }
+
+    /// <summary>A dependent lookup's parent is another single Lookup property of the field, with no loop.</summary>
+    private static void CheckLookupParents(IReadOnlyList<FieldProperty> properties)
+    {
+        var byKey = properties.ToDictionary(p => p.Key, StringComparer.Ordinal);
+        foreach (var p in properties)
+        {
+            if (p.Lookup?.ParentProperty is not { } parentKey) continue;
+            if (!byKey.TryGetValue(parentKey, out var parent) || parent.Kind != PropertyKind.Lookup)
+                throw new DomainException($"Lookup '{p.Key}': its parent '{parentKey}' is not a Lookup property of this field.");
+            if (parent.Multiple) throw new DomainException($"Lookup '{p.Key}': its parent '{parentKey}' holds one value, not a list.");
+
+            var seen = new HashSet<string>(StringComparer.Ordinal) { p.Key };
+            for (var at = parent; ; )
+            {
+                if (!seen.Add(at.Key)) throw new DomainException($"Lookup '{p.Key}': its parents go round in a loop.");
+                if (at.Lookup?.ParentProperty is not { } next || !byKey.TryGetValue(next, out var up)) break;
+                at = up;
+            }
+        }
     }
 
     private static StyleProperty CheckStyle(StyleProperty s)
