@@ -15,13 +15,12 @@
   available as the "JSON" tab. Saving and publishing go through the same API as everything else.
 *@
 
-<PageTitle>@(IsNew ? "New field" : $"Field {FieldKey}")</PageTitle>
+<PageHeader Title="@(IsNew ? L["New field"] : _detail?.Draft.Title ?? FieldKey)" />
 
 <div class="mud-container mn-page">
   <header class="mn-header">
     <div>
       <a href="dynamicfields" class="mud-typography mud-typography-body2 df-back">@L["← Fields"]</a>
-      <h1 class="mud-typography mud-typography-h4">@(IsNew ? L["New field"] : _detail?.Draft.Title ?? FieldKey)</h1>
       <p class="mud-typography mud-typography-body2 mn-muted">
         @if (_detail is { } d)
         {
