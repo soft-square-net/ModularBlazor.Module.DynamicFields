@@ -1,4 +1,5 @@
 @using soft.square.net.Module.DynamicFields.Dialogs
+@using soft.square.net.ModularBlazor.Abstractions.Lookups
 @inject IModuleDialogs ModuleDialogs
 @inject IStringLocalizer<ContentEditorForm> L
 
@@ -9,6 +10,9 @@
   Asset, Keyword and Term values get a "Choose" button when the user's catalog has the picker dialog of that module:
   Module.Media/pick-asset, Module.Keywords/pick-concepts, Module.Taxonomies/pick-terms, each called with
   { multiple, selected: [ids] } and answering { ids: [...] }. Without one, the id is typed.
+  Lookup values use the platform's lookup controls (the module that owns the lookup answers): an autocomplete (chips
+  when multiple, filtered by its parent property's value when dependent), a picker with filter chips, or a cascade of
+  autocompletes for a recursive lookup.
 *@
 
 <p class="mud-typography mud-typography-body2 mn-muted df-editor-type">
@@ -28,7 +32,33 @@
   var p = value.Property;
   var id = $"df-{_uid}-{p.Key}";
   <div class="mud-input-control df-value @(IssueFor($"/content/{p.Key}") is not null ? "mud-input-error" : "")" @key="value">
-    @if (p.Kind == PropertyKind.Boolean && !value.Multiple)
+    @if (value.IsLookup && value.Lookup is { } lookup)
+    {
+      <label class="mud-input-label" for="@id">@p.Label@(value.Required ? " *" : "")</label>
+      <div id="@id">
+        @if (lookup.Recursive == true)
+        {
+          <LookupCascade Lookup="@lookup.Key" RootKey="@lookup.RootKey" MaxDepth="@(lookup.MaxDepth ?? 5)" LeafOnly="@(lookup.LeafOnly == true)"
+                         MinChars="@(lookup.MinChars ?? 0)" Path="@value.Path" PathChanged="path => value.Path = path" />
+        }
+        else if (lookup.Mode == LookupMode.Picker)
+        {
+          <LookupPicker Lookup="@lookup.Key" Multiple="@value.Multiple" MaxSelections="@lookup.MaxSelections" PresetFilters="@Filters(lookup)"
+                        AllowUserFilters="@(lookup.AllowUserFilters == true)" Selected="@value.Selection" SelectedChanged="items => Pick(value, items)" />
+        }
+        else
+        {
+          var parentKey = State.ParentKey(value);
+          var waiting = lookup.ParentProperty is not null && parentKey is null;
+          <LookupAutocomplete Lookup="@lookup.Key" Fields="@lookup.SearchFields" Parent="@parentKey" Filters="@Filters(lookup)"
+                              MinChars="@(lookup.MinChars ?? 0)" Multiple="@value.Multiple" Disabled="@waiting"
+                              Placeholder="@(waiting ? L["Choose {0} first", ParentLabel(lookup)].Value : null)"
+                              Value="@value.Picked" ValueChanged="item => Pick(value, item is null ? [] : [item])"
+                              Values="@value.Picks" ValuesChanged="items => Pick(value, items)" />
+        }
+      </div>
+    }
+    else if (p.Kind == PropertyKind.Boolean && !value.Multiple)
     {
       <label class="mn-check"><input id="@id" type="checkbox" @bind="value.Flag" /> @p.Label</label>
     }
@@ -208,6 +238,22 @@
     }
     else value.Text = ids.FirstOrDefault() ?? "";
   }
+
+  private void Pick(ContentEditorState.ValueState value, IReadOnlyList<LookupItem> items)
+  {
+    if (value.Lookup?.MaxSelections is { } most && items.Count > most) items = items.Take(most).ToList();
+    var before = value.Multiple ? string.Join("|", value.Picks.Select(i => i.Key)) : value.Picked?.Key;
+    if (value.Multiple) value.Picks = items;
+    else value.Picked = items.FirstOrDefault();
+    var after = value.Multiple ? string.Join("|", value.Picks.Select(i => i.Key)) : value.Picked?.Key;
+    if (before != after) State.ClearDependents(value);
+  }
+
+  private static IReadOnlyList<LookupFilter>? Filters(LookupBinding lookup) =>
+    lookup.PresetFilters is { Count: > 0 } filters ? filters.Select(f => new LookupFilter(f.Field, f.Op, f.Value, f.Values)).ToList() : null;
+
+  private string ParentLabel(LookupBinding lookup) =>
+    State.Values.FirstOrDefault(v => v.Property.Key == lookup.ParentProperty)?.Property.Label ?? lookup.ParentProperty ?? "";
 
   private static string? Picker(PropertyKind kind) => kind switch
   {

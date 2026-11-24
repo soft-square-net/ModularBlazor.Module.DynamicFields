@@ -833,6 +833,16 @@
               "null",
               "boolean"
             ]
+          },
+          "lookup": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/LookupBinding"
+              }
+            ]
           }
         }
       },
@@ -1027,6 +1037,116 @@
           }
         }
       },
+      "LookupBinding": {
+        "required": [
+          "key"
+        ],
+        "type": "object",
+        "properties": {
+          "key": {
+            "type": "string"
+          },
+          "searchFields": {
+            "type": [
+              "null",
+              "array"
+            ],
+            "items": {
+              "type": "string"
+            }
+          },
+          "mode": {
+            "$ref": "#/components/schemas/LookupMode"
+          },
+          "minChars": {
+            "type": "integer",
+            "format": "int32",
+            "default": 0
+          },
+          "parentProperty": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "recursive": {
+            "type": "boolean",
+            "default": false
+          },
+          "rootKey": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "maxDepth": {
+            "type": "integer",
+            "format": "int32",
+            "default": 5
+          },
+          "leafOnly": {
+            "type": "boolean",
+            "default": false
+          },
+          "presetFilters": {
+            "type": [
+              "null",
+              "array"
+            ],
+            "items": {
+              "$ref": "#/components/schemas/LookupPresetFilter"
+            }
+          },
+          "allowUserFilters": {
+            "type": "boolean",
+            "default": true
+          },
+          "maxSelections": {
+            "type": [
+              "null",
+              "integer"
+            ],
+            "format": "int32"
+          }
+        }
+      },
+      "LookupMode": {
+        "enum": [
+          "Autocomplete",
+          "Picker"
+        ],
+        "type": "string"
+      },
+      "LookupPresetFilter": {
+        "required": [
+          "field",
+          "op"
+        ],
+        "type": "object",
+        "properties": {
+          "field": {
+            "type": "string"
+          },
+          "op": {
+            "type": "string"
+          },
+          "value": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "values": {
+            "type": [
+              "null",
+              "array"
+            ],
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
       "NewField": {
         "required": [
           "key",
@@ -1108,7 +1228,8 @@
           "Choice",
           "Asset",
           "Keyword",
-          "Term"
+          "Term",
+          "Lookup"
         ],
         "type": "string"
       },

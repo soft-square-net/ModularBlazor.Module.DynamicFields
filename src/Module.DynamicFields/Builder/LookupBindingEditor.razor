@@ -1,0 +1,274 @@
+@namespace soft.square.net.Module.DynamicFields.Builder
+@using soft.square.net.ModularBlazor.Abstractions.Lookups
+@inject ILookupService Lookups
+@inject IStringLocalizer<LookupBindingEditor> L
+
+@*
+  The options of a Lookup value in the field builder: which lookup (from the catalog of the installed modules), the
+  control authors get (autocomplete, picker or cascade), and what narrows it (search fields, preset filters, a parent
+  property). Only options that fit the lookup are offered: recursive for a tree, a parent property for a lookup with a
+  parent, filters from the lookup's own filter fields. The server checks the binding again when the field is published.
+*@
+
+<div class="df-lookup">
+  <div class="df-grid">
+    <div class="mud-input-control">
+      <label class="mud-input-label" for="@($"{Id}-lookup")">@L["List *"]</label>
+      <div class="mud-input-wrapper mud-input-wrapper--select">
+        <select id="@($"{Id}-lookup")" class="mud-input-slot" value="@B.Key" @onchange="LookupChanged">
+          <option value="">@L["Choose a list…"]</option>
+          @if (B.Key.Length > 0 && _descriptor is null)
+          {
+            <option value="@B.Key">@B.Key (@L["not installed"])</option>
+          }
+          @foreach (var group in _catalog.GroupBy(d => d.Module))
+          {
+            <optgroup label="@group.Key">
+              @foreach (var entry in group)
+              {
+                <option value="@entry.Key">@entry.Label (@entry.Key)</option>
+              }
+            </optgroup>
+          }
+        </select>
+      </div>
+      @if (_error is not null)
+      {
+        <div class="mud-input-helper-text mn-error">@_error</div>
+      }
+      else if (_descriptor?.Description is { Length: > 0 } description)
+      {
+        <div class="mud-input-helper-text">@description</div>
+      }
+    </div>
+    <div class="mud-input-control">
+      <label class="mud-input-label" for="@($"{Id}-mode")">@L["Authors pick with"]</label>
+      <div class="mud-input-wrapper mud-input-wrapper--select">
+        <select id="@($"{Id}-mode")" class="mud-input-slot" @bind="Mode">
+          <option value="autocomplete">@L["An autocomplete"]</option>
+          <option value="picker" disabled="@(B.ParentProperty is { Length: > 0 })">@L["A picker with filters"]</option>
+          @if (_descriptor?.ParentKind == "tree" && !Row.Multiple)
+          {
+            <option value="cascade">@L["A cascade, level by level"]</option>
+          }
+        </select>
+      </div>
+    </div>
+  </div>
+
+  @if (_descriptor is { } d)
+  {
+    @if (d.SearchFields.Count > 1 && Mode != "picker")
+    {
+      <div class="mud-input-control">
+        <span class="mud-input-label">@L["Search in"]</span>
+        <div class="df-checks">
+          @foreach (var field in d.SearchFields)
+          {
+            var name = field;
+            <label class="mn-check"><input type="checkbox" checked="@SearchesIn(name)" @onchange="e => ToggleSearch(name, e.Value is true)" /> @name</label>
+          }
+        </div>
+        <div class="mud-input-helper-text">@L["None checked: all of them."]</div>
+      </div>
+    }
+
+    <div class="df-grid">
+      @if (Mode != "picker")
+      {
+        <div class="mud-input-control">
+          <label class="mud-input-label" for="@($"{Id}-minchars")">@L["Characters before searching"]</label>
+          <div class="mud-input-wrapper"><input id="@($"{Id}-minchars")" type="number" min="0" max="10" step="1" class="mud-input-slot" @bind="B.MinChars" /></div>
+        </div>
+      }
+      @if (Row.Multiple)
+      {
+        <div class="mud-input-control">
+          <label class="mud-input-label" for="@($"{Id}-max")">@L["At most (values)"]</label>
+          <div class="mud-input-wrapper"><input id="@($"{Id}-max")" type="number" min="1" step="1" class="mud-input-slot" @bind="B.MaxSelections" /></div>
+        </div>
+      }
+      @if (Mode == "autocomplete" && d.ParentKind is not null)
+      {
+        <div class="mud-input-control">
+          <label class="mud-input-label" for="@($"{Id}-parent")">@L["Filtered by the value of"]</label>
+          <div class="mud-input-wrapper mud-input-wrapper--select">
+            <select id="@($"{Id}-parent")" class="mud-input-slot" @bind="B.ParentProperty">
+              <option value="">@L["(nothing)"]</option>
+              @foreach (var other in Others.Where(o => o.IsLookup && !o.Multiple && o != Row && o.Key.Trim().Length > 0))
+              {
+                <option value="@other.Key.Trim()">@(other.Label.Length > 0 ? other.Label : other.Key)</option>
+              }
+            </select>
+          </div>
+          <div class="mud-input-helper-text">@L["Its key is this list's parent ({0}), e.g. a city after its country.", d.ParentField ?? ""]</div>
+        </div>
+      }
+    </div>
+
+    @if (Mode == "cascade")
+    {
+      <div class="df-grid">
+        <div class="mud-input-control">
+          <span class="mud-input-label">@L["Start under"]</span>
+          <LookupAutocomplete Lookup="@d.Key" Value="@_root" ValueChanged="RootChanged" Placeholder="@L["The top of the tree"]" />
+        </div>
+        <div class="mud-input-control">
+          <label class="mud-input-label" for="@($"{Id}-depth")">@L["Levels at most"]</label>
+          <div class="mud-input-wrapper"><input id="@($"{Id}-depth")" type="number" min="1" max="10" step="1" class="mud-input-slot" @bind="B.MaxDepth" /></div>
+        </div>
+      </div>
+      <label class="mn-check"><input type="checkbox" @bind="B.LeafOnly" /> @L["Only the most specific items (no children)"]</label>
+    }
+
+    @if (Mode == "picker" && d.FilterFields.Count > 0)
+    {
+      <label class="mn-check"><input type="checkbox" @bind="B.AllowUserFilters" /> @L["Authors may add filters of their own"]</label>
+    }
+
+    @if (d.FilterFields.Count > 0)
+    {
+      <div class="mud-input-control">
+        <span class="mud-input-label">@L["Preset filters"]</span>
+        @foreach (var filter in B.Filters)
+        {
+          var f = filter;
+          var ops = d.FilterFields.FirstOrDefault(x => x.Name == f.Field)?.Ops ?? [];
+          <div class="df-item df-lookup-filter">
+            <div class="mud-input-wrapper mud-input-wrapper--select mud-input-wrapper--dense">
+              <select class="mud-input-slot" aria-label="@L["Field"]" value="@f.Field" @onchange="e => FilterFieldChanged(f, e.Value?.ToString())">
+                @foreach (var field in d.FilterFields)
+                {
+                  <option value="@field.Name">@field.Label</option>
+                }
+              </select>
+            </div>
+            <div class="mud-input-wrapper mud-input-wrapper--select mud-input-wrapper--dense">
+              <select class="mud-input-slot" aria-label="@L["Operator"]" @bind="f.Op">
+                @foreach (var op in ops)
+                {
+                  <option value="@op">@L[LookupOps.Symbol(op)]</option>
+                }
+              </select>
+            </div>
+            @if (f.TakesValues)
+            {
+              <div class="mud-input-wrapper mud-input-wrapper--dense">
+                <input class="mud-input-slot" aria-label="@L["Values"]" placeholder="@(f.Op == "between" ? L["from, to"] : L["Values, separated by commas"])" @bind="f.ValuesText" />
+              </div>
+            }
+            else if (f.Op != "isEmpty")
+            {
+              <div class="mud-input-wrapper mud-input-wrapper--dense">
+                <input class="mud-input-slot" aria-label="@L["Value"]" @bind="f.Value" />
+              </div>
+            }
+            <button type="button" class="mud-button-root mud-button-text mud-button-small" aria-label="@L["Remove"]" @onclick="() => B.Filters.Remove(f)">✕</button>
+          </div>
+        }
+        <div class="df-item-actions">
+          <button type="button" class="mud-button-root mud-button-text mud-button-primary mud-button-small" @onclick="AddFilter">@L["Add a filter"]</button>
+        </div>
+        <div class="mud-input-helper-text">@L["Every search applies them, and saved values must match them. Keys, not texts: a key filter takes the item's key."]</div>
+      </div>
+    }
+  }
+</div>
+
+@code {
+  [Parameter, EditorRequired] public FieldBuilderState.PropertyRow Row { get; set; } = default!;
+
+  /// <summary>The field's values, for the parent property.</summary>
+  [Parameter, EditorRequired] public IReadOnlyList<FieldBuilderState.PropertyRow> Others { get; set; } = [];
+
+  [Parameter, EditorRequired] public string Id { get; set; } = "";
+
+  private FieldBuilderState.LookupRow B => Row.Lookup;
+  private IReadOnlyList<LookupDescriptor> _catalog = [];
+  private LookupDescriptor? _descriptor;
+  private LookupItem? _root;
+  private string? _error;
+  private string? _loadedRoot;
+
+  private string Mode
+  {
+    get => B.Recursive && !Row.Multiple ? "cascade" : B.Mode == LookupMode.Picker ? "picker" : "autocomplete";
+    set
+    {
+      B.Recursive = value == "cascade";
+      B.Mode = value == "picker" ? LookupMode.Picker : LookupMode.Autocomplete;
+      if (B.Recursive || B.Mode == LookupMode.Picker) B.ParentProperty = null;
+    }
+  }
+
+  protected override async Task OnInitializedAsync()
+  {
+    try
+    {
+      _catalog = await Lookups.CatalogAsync();
+    }
+    catch (HttpRequestException e)
+    {
+      _error = L["The lists could not be loaded: {0}", e.Message];
+    }
+    _descriptor = _catalog.FirstOrDefault(d => d.Key == B.Key);
+  }
+
+  protected override async Task OnParametersSetAsync()
+  {
+    if (B.RootKey == _loadedRoot) return;
+    _loadedRoot = B.RootKey;
+    _root = null;
+    if (B.RootKey is not { Length: > 0 } key || B.Key.Length == 0) return;
+    try
+    {
+      _root = (await Lookups.ResolveAsync(B.Key, [key])).FirstOrDefault() ?? new LookupItem(key, key);
+    }
+    catch (Exception e) when (e is HttpRequestException or InvalidOperationException or ArgumentException)
+    {
+      _root = new LookupItem(key, key);
+    }
+  }
+
+  private void LookupChanged(ChangeEventArgs e)
+  {
+    B.Key = e.Value?.ToString() ?? "";
+    _descriptor = _catalog.FirstOrDefault(d => d.Key == B.Key);
+    // What belonged to the old list does not fit the new one.
+    B.SearchFieldsText = "";
+    B.Filters.Clear();
+    (B.RootKey, _root, _loadedRoot) = (null, null, null);
+    if (_descriptor?.ParentKind != "tree") B.Recursive = false;
+    if (_descriptor?.ParentKind is null) B.ParentProperty = null;
+    if (Row.Label.Trim().Length == 0 && _descriptor is not null) Row.Label = _descriptor.Label;
+  }
+
+  private void RootChanged(LookupItem? item)
+  {
+    _root = item;
+    B.RootKey = _loadedRoot = item?.Key;
+  }
+
+  private bool SearchesIn(string field) => FieldBuilderState.SplitList(B.SearchFieldsText).Contains(field);
+
+  private void ToggleSearch(string field, bool on)
+  {
+    var fields = FieldBuilderState.SplitList(B.SearchFieldsText);
+    fields.Remove(field);
+    if (on) fields.Add(field);
+    B.SearchFieldsText = string.Join(", ", fields);
+  }
+
+  private void AddFilter()
+  {
+    if (_descriptor?.FilterFields.FirstOrDefault() is not { } first) return;
+    B.Filters.Add(new FieldBuilderState.PresetFilterRow { Field = first.Name, Op = first.Ops.FirstOrDefault() ?? "eq" });
+  }
+
+  private void FilterFieldChanged(FieldBuilderState.PresetFilterRow f, string? name)
+  {
+    f.Field = name ?? "";
+    var ops = _descriptor?.FilterFields.FirstOrDefault(x => x.Name == f.Field)?.Ops ?? [];
+    if (!ops.Contains(f.Op)) f.Op = ops.FirstOrDefault() ?? "eq";
+  }
+}

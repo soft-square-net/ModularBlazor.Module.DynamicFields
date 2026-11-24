@@ -1763,6 +1763,9 @@ namespace soft.square.net.WebApi.Modules.DynamicFields.Client
         [System.Text.Json.Serialization.JsonPropertyName("translatable")]
         public bool? Translatable { get; set; } = default!;
 
+        [System.Text.Json.Serialization.JsonPropertyName("lookup")]
+        public LookupBinding? Lookup { get; set; } = default!;
+
         private System.Collections.Generic.IDictionary<string, object>? _additionalProperties;
 
         [System.Text.Json.Serialization.JsonExtensionData]
@@ -1963,6 +1966,100 @@ namespace soft.square.net.WebApi.Modules.DynamicFields.Client
     }
 
     [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "14.8.0.0 (NJsonSchema v11.6.2.0 (Newtonsoft.Json v13.0.0.0))")]
+    public partial class LookupBinding
+    {
+
+        [System.Text.Json.Serialization.JsonPropertyName("key")]
+        [System.ComponentModel.DataAnnotations.Required(AllowEmptyStrings = true)]
+        public string Key { get; set; } = default!;
+
+        [System.Text.Json.Serialization.JsonPropertyName("searchFields")]
+        public System.Collections.Generic.IReadOnlyList<string>? SearchFields { get; set; } = default!;
+
+        [System.Text.Json.Serialization.JsonPropertyName("mode")]
+        [System.Text.Json.Serialization.JsonConverter(typeof(System.Text.Json.Serialization.JsonStringEnumConverter<LookupMode>))]
+        public LookupMode? Mode { get; set; } = default!;
+
+        [System.Text.Json.Serialization.JsonPropertyName("minChars")]
+        public int? MinChars { get; set; } = 0;
+
+        [System.Text.Json.Serialization.JsonPropertyName("parentProperty")]
+        public string? ParentProperty { get; set; } = default!;
+
+        [System.Text.Json.Serialization.JsonPropertyName("recursive")]
+        public bool? Recursive { get; set; } = false;
+
+        [System.Text.Json.Serialization.JsonPropertyName("rootKey")]
+        public string? RootKey { get; set; } = default!;
+
+        [System.Text.Json.Serialization.JsonPropertyName("maxDepth")]
+        public int? MaxDepth { get; set; } = 5;
+
+        [System.Text.Json.Serialization.JsonPropertyName("leafOnly")]
+        public bool? LeafOnly { get; set; } = false;
+
+        [System.Text.Json.Serialization.JsonPropertyName("presetFilters")]
+        public System.Collections.Generic.IReadOnlyList<LookupPresetFilter>? PresetFilters { get; set; } = default!;
+
+        [System.Text.Json.Serialization.JsonPropertyName("allowUserFilters")]
+        public bool? AllowUserFilters { get; set; } = true;
+
+        [System.Text.Json.Serialization.JsonPropertyName("maxSelections")]
+        public int? MaxSelections { get; set; } = default!;
+
+        private System.Collections.Generic.IDictionary<string, object>? _additionalProperties;
+
+        [System.Text.Json.Serialization.JsonExtensionData]
+        public System.Collections.Generic.IDictionary<string, object> AdditionalProperties
+        {
+            get { return _additionalProperties ?? (_additionalProperties = new System.Collections.Generic.Dictionary<string, object>()); }
+            set { _additionalProperties = value; }
+        }
+
+    }
+
+    [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "14.8.0.0 (NJsonSchema v11.6.2.0 (Newtonsoft.Json v13.0.0.0))")]
+    public enum LookupMode
+    {
+
+        [System.Runtime.Serialization.EnumMember(Value = @"Autocomplete")]
+        Autocomplete = 0,
+
+        [System.Runtime.Serialization.EnumMember(Value = @"Picker")]
+        Picker = 1,
+
+    }
+
+    [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "14.8.0.0 (NJsonSchema v11.6.2.0 (Newtonsoft.Json v13.0.0.0))")]
+    public partial class LookupPresetFilter
+    {
+
+        [System.Text.Json.Serialization.JsonPropertyName("field")]
+        [System.ComponentModel.DataAnnotations.Required(AllowEmptyStrings = true)]
+        public string Field { get; set; } = default!;
+
+        [System.Text.Json.Serialization.JsonPropertyName("op")]
+        [System.ComponentModel.DataAnnotations.Required(AllowEmptyStrings = true)]
+        public string Op { get; set; } = default!;
+
+        [System.Text.Json.Serialization.JsonPropertyName("value")]
+        public string? Value { get; set; } = default!;
+
+        [System.Text.Json.Serialization.JsonPropertyName("values")]
+        public System.Collections.Generic.IReadOnlyList<string>? Values { get; set; } = default!;
+
+        private System.Collections.Generic.IDictionary<string, object>? _additionalProperties;
+
+        [System.Text.Json.Serialization.JsonExtensionData]
+        public System.Collections.Generic.IDictionary<string, object> AdditionalProperties
+        {
+            get { return _additionalProperties ?? (_additionalProperties = new System.Collections.Generic.Dictionary<string, object>()); }
+            set { _additionalProperties = value; }
+        }
+
+    }
+
+    [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "14.8.0.0 (NJsonSchema v11.6.2.0 (Newtonsoft.Json v13.0.0.0))")]
     public partial class NewField
     {
 
@@ -2082,6 +2179,9 @@ namespace soft.square.net.WebApi.Modules.DynamicFields.Client
 
         [System.Runtime.Serialization.EnumMember(Value = @"Term")]
         Term = 11,
+
+        [System.Runtime.Serialization.EnumMember(Value = @"Lookup")]
+        Lookup = 12,
 
     }
 

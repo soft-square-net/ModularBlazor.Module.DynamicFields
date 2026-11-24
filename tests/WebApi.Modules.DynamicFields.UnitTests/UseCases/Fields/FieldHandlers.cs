@@ -1,3 +1,4 @@
+using soft.square.net.WebApi.Contracts.Lookups;
 using soft.square.net.WebApi.Modules.DynamicFields.Core.FieldAggregate;
 using soft.square.net.WebApi.Modules.DynamicFields.Core.FieldAggregate.Specifications;
 using soft.square.net.WebApi.Modules.DynamicFields.UseCases.Content.Validate;
@@ -15,6 +16,7 @@ public class FieldHandlers
     private readonly IReadRepository<FieldDefinition> _read = Substitute.For<IReadRepository<FieldDefinition>>();
     private readonly IAccessScopes _access = Substitute.For<IAccessScopes>();
     private readonly TestClock _clock = new();
+    private readonly ILookupClient _lookups = Substitute.For<ILookupClient>();
 
     public FieldHandlers() => _access.UserId.Returns("author-1");
 
@@ -56,7 +58,7 @@ public class FieldHandlers
         _fields.FirstOrDefaultAsync(Arg.Any<FieldByKeySpec>(), Ct).Returns(post);
         _fields.ListAsync(Arg.Any<FieldsByKeysSpec>(), Ct).Returns([paragraph, Published("block.image", Image())]);
 
-        var result = await new PublishFieldHandler(_fields, _access, _clock).Handle(new PublishFieldCommand("post.news", 0), Ct);
+        var result = await new PublishFieldHandler(_fields, _access, _clock, _lookups).Handle(new PublishFieldCommand("post.news", 0), Ct);
 
         result.IsSuccess.ShouldBeTrue();
         result.Value.Field.Children.Select(c => (c.FieldKey, c.Version)).ShouldBe([("block.paragraph", 2), ("block.image", 1)]);
@@ -68,7 +70,7 @@ public class FieldHandlers
     {
         _fields.FirstOrDefaultAsync(Arg.Any<FieldByKeySpec>(), Ct).Returns(FieldDefinition.Create("block.image", Image(), "author-1", Now));
 
-        var result = await new PublishFieldHandler(_fields, _access, _clock).Handle(new PublishFieldCommand("block.image", 7), Ct);
+        var result = await new PublishFieldHandler(_fields, _access, _clock, _lookups).Handle(new PublishFieldCommand("block.image", 7), Ct);
 
         result.Status.ShouldBe(ResultStatus.Conflict);
     }
@@ -92,7 +94,7 @@ public class FieldHandlers
             Published("block.image", Image()),
             Published("post.news", NewsPost(), new() { ["block.paragraph"] = 1, ["block.image"] = 1 })
         ]);
-        var handler = new ValidateContentHandler(_read);
+        var handler = new ValidateContentHandler(_read, _lookups);
 
         (await handler.Handle(new ValidateContentQuery(Post()), Ct)).Value.Valid.ShouldBeTrue();
 

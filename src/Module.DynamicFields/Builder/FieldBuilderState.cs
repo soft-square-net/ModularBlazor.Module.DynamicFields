@@ -108,12 +108,14 @@ public sealed class FieldBuilderState
         public double? Minimum { get; set; }
         public double? Maximum { get; set; }
         public string OptionsText { get; set; } = "";
+        public LookupRow Lookup { get; set; } = new();
 
         /// <summary>Whether the row's details are shown in the builder.</summary>
         public bool Open { get; set; }
 
         public bool IsText => Kind is PropertyKind.Text or PropertyKind.RichText;
         public bool IsNumber => Kind is PropertyKind.Integer or PropertyKind.Decimal;
+        public bool IsLookup => Kind == PropertyKind.Lookup;
 
         public static PropertyRow From(FieldProperty p) => new()
         {
@@ -129,7 +131,8 @@ public sealed class FieldBuilderState
             MaxLength = p.MaxLength,
             Minimum = p.Minimum,
             Maximum = p.Maximum,
-            OptionsText = string.Join("\n", p.Options ?? [])
+            OptionsText = string.Join("\n", p.Options ?? []),
+            Lookup = LookupRow.From(p.Lookup)
         };
 
         /// <summary>A value made from a schema.org property, with the kind and limits the catalog suggests.</summary>
@@ -162,7 +165,94 @@ public sealed class FieldBuilderState
             MaxLength = IsText ? MaxLength : null,
             Minimum = IsNumber ? Minimum : null,
             Maximum = IsNumber ? Maximum : null,
-            Options = Kind == PropertyKind.Choice ? SplitList(OptionsText) : null
+            Options = Kind == PropertyKind.Choice ? SplitList(OptionsText) : null,
+            Lookup = IsLookup ? Lookup.ToModel(Multiple) : null
+        };
+    }
+
+    /// <summary>
+    /// What a Lookup value picks from and how: the lookup (from the catalog), the control, and its options. Options that
+    /// do not fit the control are dropped, not sent (the server would refuse them).
+    /// </summary>
+    public sealed class LookupRow
+    {
+        public string Key { get; set; } = "";
+        public LookupMode Mode { get; set; } = LookupMode.Autocomplete;
+        public string SearchFieldsText { get; set; } = "";
+        public int MinChars { get; set; }
+        public string? ParentProperty { get; set; }
+        public bool Recursive { get; set; }
+        public string? RootKey { get; set; }
+        public int MaxDepth { get; set; } = 5;
+        public bool LeafOnly { get; set; }
+        public bool AllowUserFilters { get; set; } = true;
+        public int? MaxSelections { get; set; }
+        public List<PresetFilterRow> Filters { get; } = [];
+
+        public static LookupRow From(LookupBinding? b)
+        {
+            if (b is null) return new();
+            var row = new LookupRow
+            {
+                Key = b.Key,
+                Mode = b.Mode ?? LookupMode.Autocomplete,
+                SearchFieldsText = string.Join(", ", b.SearchFields ?? []),
+                MinChars = b.MinChars ?? 0,
+                ParentProperty = b.ParentProperty,
+                Recursive = b.Recursive == true,
+                RootKey = b.RootKey,
+                MaxDepth = b.MaxDepth ?? 5,
+                LeafOnly = b.LeafOnly == true,
+                AllowUserFilters = b.AllowUserFilters != false,
+                MaxSelections = b.MaxSelections
+            };
+            row.Filters.AddRange((b.PresetFilters ?? []).Select(f => new PresetFilterRow
+            {
+                Field = f.Field, Op = f.Op, Value = f.Value ?? "", ValuesText = string.Join(", ", f.Values ?? [])
+            }));
+            return row;
+        }
+
+        public LookupBinding ToModel(bool multiple)
+        {
+            var recursive = Recursive && !multiple;
+            var mode = recursive ? LookupMode.Autocomplete : Mode;
+            var searchFields = SplitList(SearchFieldsText);
+            var filters = Filters.Where(f => f.Field.Trim().Length > 0).Select(f => f.ToModel()).ToList();
+            return new LookupBinding
+            {
+                Key = Key.Trim(),
+                Mode = mode,
+                SearchFields = searchFields.Count > 0 ? searchFields : null,
+                MinChars = MinChars,
+                ParentProperty = recursive || mode == LookupMode.Picker ? null : Blank(ParentProperty),
+                Recursive = recursive,
+                RootKey = recursive ? Blank(RootKey) : null,
+                MaxDepth = recursive ? MaxDepth : 5,
+                LeafOnly = recursive && LeafOnly,
+                PresetFilters = filters.Count > 0 ? filters : null,
+                AllowUserFilters = mode == LookupMode.Picker && AllowUserFilters,
+                MaxSelections = multiple ? MaxSelections : null
+            };
+        }
+    }
+
+    /// <summary>A filter the author fixes: field, operator, and one value or a list (in, between).</summary>
+    public sealed class PresetFilterRow
+    {
+        public string Field { get; set; } = "";
+        public string Op { get; set; } = "eq";
+        public string Value { get; set; } = "";
+        public string ValuesText { get; set; } = "";
+
+        public bool TakesValues => Op is "in" or "between";
+
+        public LookupPresetFilter ToModel() => new()
+        {
+            Field = Field.Trim(),
+            Op = Op,
+            Value = Op is "isEmpty" || TakesValues ? null : Value.Trim(),
+            Values = TakesValues ? SplitList(ValuesText) : null
         };
     }
 
