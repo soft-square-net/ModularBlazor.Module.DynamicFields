@@ -5,7 +5,8 @@ namespace soft.square.net.WebApi.Modules.DynamicFields.UseCases.Catalog;
 
 /// <summary>
 /// A schema.org type for the builder. <see cref="Path"/> runs from CreativeWork to the type; <see cref="Properties"/>
-/// are every property it has (its own first, then inherited); <see cref="Suggested"/> are the ones to tick when picked.
+/// are every property it has (its own first, then inherited); <see cref="Suggested"/> are the ones to tick when picked;
+/// <see cref="ContentAccept"/> are the files its contentUrl takes (null: any file).
 /// </summary>
 public sealed record SchemaTypeDto(
     string Name,
@@ -13,7 +14,8 @@ public sealed record SchemaTypeDto(
     string Description,
     IReadOnlyList<string> Path,
     IReadOnlyList<string> Properties,
-    IReadOnlyList<string> Suggested);
+    IReadOnlyList<string> Suggested,
+    IReadOnlyList<string>? ContentAccept);
 
 /// <summary>What the field builder works from: the schema.org types and properties, and the common style choices.</summary>
 public sealed record SchemaOrgCatalogDto(
@@ -28,7 +30,8 @@ public sealed class GetSchemaOrgCatalogHandler : IQueryHandler<GetSchemaOrgCatal
 {
     private static readonly SchemaOrgCatalogDto Catalog = new(
         [.. SchemaOrgCatalog.Types.Select(t => new SchemaTypeDto(t.Name, t.Parent, t.Description, SchemaOrgCatalog.PathOf(t.Name),
-            [.. SchemaOrgCatalog.PropertiesOf(t.Name).Select(p => p.Name)], SchemaOrgCatalog.SuggestedFor(t.Name)))],
+            [.. SchemaOrgCatalog.PropertiesOf(t.Name).Select(p => p.Name)], SchemaOrgCatalog.SuggestedFor(t.Name),
+            SchemaOrgCatalog.ContentAcceptOf(t.Name)))],
         [.. SchemaOrgCatalog.Properties.Values.OrderBy(p => p.Name, StringComparer.Ordinal)],
         StylePresets.All);
 

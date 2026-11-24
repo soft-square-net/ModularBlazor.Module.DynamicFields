@@ -843,6 +843,15 @@
                 "$ref": "#/components/schemas/LookupBinding"
               }
             ]
+          },
+          "accept": {
+            "type": [
+              "null",
+              "array"
+            ],
+            "items": {
+              "type": "string"
+            }
           }
         }
       },
@@ -1115,7 +1124,8 @@
           "Autocomplete",
           "Picker"
         ],
-        "type": "string"
+        "type": "string",
+        "default": "Autocomplete"
       },
       "LookupPresetFilter": {
         "required": [
@@ -1327,6 +1337,15 @@
             "items": {
               "type": "string"
             }
+          },
+          "accept": {
+            "type": [
+              "null",
+              "array"
+            ],
+            "items": {
+              "type": "string"
+            }
           }
         }
       },
@@ -1337,7 +1356,8 @@
           "description",
           "path",
           "properties",
-          "suggested"
+          "suggested",
+          "contentAccept"
         ],
         "type": "object",
         "properties": {
@@ -1367,6 +1387,15 @@
           },
           "suggested": {
             "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "contentAccept": {
+            "type": [
+              "null",
+              "array"
+            ],
             "items": {
               "type": "string"
             }

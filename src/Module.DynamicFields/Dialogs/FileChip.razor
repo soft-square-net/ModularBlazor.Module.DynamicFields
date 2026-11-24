@@ -1,0 +1,40 @@
+@*
+  A file an Asset value names, as the file picker answered it: a thumbnail when it is an image with a public address,
+  its name, type and size.
+*@
+@inject IStringLocalizer<FileChip> L
+
+<div class="df-file" title="@File.Id">
+  @if (File.PublicUrl is { Length: > 0 } url && (File.ContentType ?? "").StartsWith("image/", StringComparison.OrdinalIgnoreCase))
+  {
+    <img class="df-file-thumb" src="@url" alt="" loading="lazy" />
+  }
+  else
+  {
+    <span class="df-file-icon" aria-hidden="true">@Icon(File.ContentType)</span>
+  }
+  <span class="df-file-name">@File.Name</span>
+  <span class="mn-muted">@Details()</span>
+</div>
+
+@code {
+  [Parameter, EditorRequired] public PickedFile File { get; set; } = default!;
+
+  private string Details() =>
+    string.Join(" · ", new[] { File.ContentType, File.Size is { } size ? Size(size) : null }.Where(d => d is { Length: > 0 }));
+
+  private static string Icon(string? contentType) => (contentType ?? "").Split('/')[0] switch
+  {
+    "image" => "🖼",
+    "video" => "🎬",
+    "audio" => "🎵",
+    _ => "📄"
+  };
+
+  private string Size(long bytes) => bytes switch
+  {
+    < 1024 => L["{0} B", bytes],
+    < 1024 * 1024 => L["{0} KB", Math.Round(bytes / 1024d, 1)],
+    _ => L["{0} MB", Math.Round(bytes / (1024d * 1024), 1)]
+  };
+}

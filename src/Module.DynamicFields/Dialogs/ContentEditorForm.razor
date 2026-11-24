@@ -7,9 +7,13 @@
   The form of one content node: a control per value of the field and a select per style. The edit-content dialog shows
   it around a published version; the field builder shows it as a live preview of a draft. Issues are keyed by owner path
   (/content/{key}, /style/{key}).
-  Asset, Keyword and Term values get a "Choose" button when the user's catalog has the picker dialog of that module:
-  Module.Media/pick-asset, Module.Keywords/pick-concepts, Module.Taxonomies/pick-terms, each called with
-  { multiple, selected: [ids] } and answering { ids: [...] }. Without one, the id is typed.
+  Asset, Keyword and Term values get a "Choose" button when the user's catalog has a picker dialog for them, called with
+  { multiple, selected: [ids], accept } and answering { ids: [...], files? }:
+  - Asset: Module.Media/pick-asset when a media module is installed, else the Storage module's file browser
+    (Module.Storage/pick-files), limited to the property's accept list (image/*, video/*, .pdf, ...). The files it
+    answers with are shown by name, images as a thumbnail when they have a public address;
+  - Keyword: Module.Keywords/pick-concepts; Term: Module.Taxonomies/pick-terms.
+  Without one, the id is typed.
   Lookup values use the platform's lookup controls (the module that owns the lookup answers): an autocomplete (chips
   when multiple, filtered by its parent property's value when dependent), a picker with filter chips, or a cascade of
   autocompletes for a recursive lookup.
@@ -88,10 +92,14 @@
             </div>
             <button type="button" class="mud-button-root mud-button-text mud-button-small" aria-label="@L["Remove"]" @onclick="() => value.Items.RemoveAt(index)">✕</button>
           </div>
+          @if (p.Kind == PropertyKind.Asset && FileOf(value.Items[index]) is { } file)
+          {
+            <FileChip File="file" />
+          }
         }
         <div class="df-item-actions">
           <button type="button" class="mud-button-root mud-button-text mud-button-primary mud-button-small" @onclick="() => value.Items.Add(string.Empty)">@L["Add"]</button>
-          @if (Picker(p.Kind) is { } picker && ModuleDialogs.IsAvailable(picker))
+          @if (PickerFor(p.Kind) is { } picker)
           {
             <button type="button" class="mud-button-root mud-button-text mud-button-primary mud-button-small" @onclick="() => PickAsync(value, picker)">@L["Choose…"]</button>
           }
@@ -122,11 +130,15 @@
             <input id="@id" class="mud-input-slot" type="@InputType(p.Kind)" step="@Step(p.Kind)" maxlength="@p.MaxLength"
                    min="@p.Minimum" max="@p.Maximum" @bind="value.Text" placeholder="@Placeholder(p.Kind)" />
           </div>
-          @if (Picker(p.Kind) is { } picker && ModuleDialogs.IsAvailable(picker))
+          @if (PickerFor(p.Kind) is { } picker)
           {
             <button type="button" class="mud-button-root mud-button-text mud-button-primary mud-button-small" @onclick="() => PickAsync(value, picker)">@L["Choose…"]</button>
           }
         </div>
+        @if (p.Kind == PropertyKind.Asset && FileOf(value.Text) is { } file)
+        {
+          <FileChip File="file" />
+        }
       }
     }
     @if (IssueFor($"/content/{p.Key}") is { } issue)
@@ -211,8 +223,13 @@
   /// <summary>Whether the style section starts open.</summary>
   [Parameter] public bool StyleOpen { get; set; }
 
-  /// <summary>The ids a picker dialog answers with.</summary>
-  private sealed record Picked(IReadOnlyList<string>? Ids);
+  /// <summary>The ids a picker dialog answers with, and (Storage's file browser) the files they are.</summary>
+  private sealed record Picked(IReadOnlyList<string>? Ids, IReadOnlyList<PickedFile>? Files);
+
+  /// <summary>The files picked in this form, by id: what an Asset value shows beside its id.</summary>
+  private readonly Dictionary<string, PickedFile> _files = new(StringComparer.Ordinal);
+
+  private PickedFile? FileOf(string? id) => id is { Length: > 0 } ? _files.GetValueOrDefault(id.Trim()) : null;
 
   private readonly string _uid = Guid.NewGuid().ToString("n")[..8];
 
@@ -227,8 +244,11 @@
   private async Task PickAsync(ContentEditorState.ValueState value, string picker)
   {
     var selected = value.Multiple ? value.Items.Where(i => i.Trim().Length > 0).ToArray() : value.Text.Trim().Length > 0 ? [value.Text.Trim()] : [];
-    var result = await ModuleDialogs.ShowAsync(picker, new { multiple = value.Multiple, selected });
-    if (result.Canceled || result.As<Picked>()?.Ids is not { } ids) return;
+    var accept = value.Property.Kind == PropertyKind.Asset ? value.Property.Accept : null;
+    var result = await ModuleDialogs.ShowAsync(picker, new { multiple = value.Multiple, selected, accept });
+    if (result.Canceled || result.As<Picked>() is not { Ids: { } ids } picked) return;
+    foreach (var file in picked.Files ?? [])
+      if (file.Id is { Length: > 0 }) _files[file.Id] = file;
 
     if (value.Multiple)
     {
@@ -255,13 +275,17 @@
   private string ParentLabel(LookupBinding lookup) =>
     State.Values.FirstOrDefault(v => v.Property.Key == lookup.ParentProperty)?.Property.Label ?? lookup.ParentProperty ?? "";
 
-  private static string? Picker(PropertyKind kind) => kind switch
+  /// <summary>The picker dialogs of a kind, the preferred first: a media module's asset picker before Storage's files.</summary>
+  private static string[] Pickers(PropertyKind kind) => kind switch
   {
-    PropertyKind.Asset => "Module.Media/pick-asset",
-    PropertyKind.Keyword => "Module.Keywords/pick-concepts",
-    PropertyKind.Term => "Module.Taxonomies/pick-terms",
-    _ => null
+    PropertyKind.Asset => ["Module.Media/pick-asset", "Module.Storage/pick-files"],
+    PropertyKind.Keyword => ["Module.Keywords/pick-concepts"],
+    PropertyKind.Term => ["Module.Taxonomies/pick-terms"],
+    _ => []
   };
+
+  /// <summary>The first picker of the kind the user's catalog has, or null (the id is typed).</summary>
+  private string? PickerFor(PropertyKind kind) => Pickers(kind).FirstOrDefault(ModuleDialogs.IsAvailable);
 
   private static string InputType(PropertyKind kind) => kind switch
   {
@@ -282,7 +306,7 @@
   private string? Placeholder(PropertyKind kind) => kind switch
   {
     PropertyKind.Url => "https://…",
-    PropertyKind.Asset => L["asset id"],
+    PropertyKind.Asset => L["file id"],
     PropertyKind.Keyword => L["keyword id"],
     PropertyKind.Term => L["term id"],
     _ => null

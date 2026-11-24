@@ -1766,6 +1766,9 @@ namespace soft.square.net.WebApi.Modules.DynamicFields.Client
         [System.Text.Json.Serialization.JsonPropertyName("lookup")]
         public LookupBinding? Lookup { get; set; } = default!;
 
+        [System.Text.Json.Serialization.JsonPropertyName("accept")]
+        public System.Collections.Generic.IReadOnlyList<string>? Accept { get; set; } = default!;
+
         private System.Collections.Generic.IDictionary<string, object>? _additionalProperties;
 
         [System.Text.Json.Serialization.JsonExtensionData]
@@ -2266,6 +2269,9 @@ namespace soft.square.net.WebApi.Modules.DynamicFields.Client
         [System.Text.Json.Serialization.JsonPropertyName("options")]
         public System.Collections.Generic.IReadOnlyList<string>? Options { get; set; } = default!;
 
+        [System.Text.Json.Serialization.JsonPropertyName("accept")]
+        public System.Collections.Generic.IReadOnlyList<string>? Accept { get; set; } = default!;
+
         private System.Collections.Generic.IDictionary<string, object>? _additionalProperties;
 
         [System.Text.Json.Serialization.JsonExtensionData]
@@ -2303,6 +2309,9 @@ namespace soft.square.net.WebApi.Modules.DynamicFields.Client
         [System.Text.Json.Serialization.JsonPropertyName("suggested")]
         [System.ComponentModel.DataAnnotations.Required]
         public System.Collections.Generic.IReadOnlyList<string> Suggested { get; set; } = new System.Collections.Generic.List<string>();
+
+        [System.Text.Json.Serialization.JsonPropertyName("contentAccept")]
+        public System.Collections.Generic.IReadOnlyList<string>? ContentAccept { get; set; } = default!;
 
         private System.Collections.Generic.IDictionary<string, object>? _additionalProperties;
 

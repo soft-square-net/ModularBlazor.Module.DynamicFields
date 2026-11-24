@@ -36,7 +36,10 @@ public enum PropertyKind
     /// <summary>One of the property's <see cref="FieldProperty.Options"/> (JSON string).</summary>
     Choice,
 
-    /// <summary>The id of a media asset (JSON string); the media module owns the asset.</summary>
+    /// <summary>
+    /// The id of a file (JSON string): a Storage file, or a media asset when a media module is installed; that module owns
+    /// it. <see cref="FieldProperty.Accept"/> limits which files can be chosen (images, video, audio, documents).
+    /// </summary>
     Asset,
 
     /// <summary>The id of a Keywords concept (JSON string); maps to schema.org about, mentions or keywords.</summary>
@@ -58,7 +61,8 @@ public enum PropertyKind
 /// contentUrl, ...), which is what makes the content readable by search engines and AI. <see cref="Translatable"/>:
 /// whether the value has a translation per language (Text and RichText only; null means yes for them). Say false for
 /// text that is not language, such as a code or a slug. <see cref="Lookup"/>: what a Lookup property picks from (that
-/// kind only).
+/// kind only). <see cref="Accept"/>: the files an Asset property takes (that kind only; null: any file), each a content
+/// type (<c>image/png</c>), a family (<c>image/*</c>) or an extension (<c>.pdf</c>), as the file picker's accept list.
 /// </summary>
 public sealed record FieldProperty(
     string Key,
@@ -74,7 +78,8 @@ public sealed record FieldProperty(
     decimal? Maximum = null,
     IReadOnlyList<string>? Options = null,
     bool? Translatable = null,
-    LookupBinding? Lookup = null);
+    LookupBinding? Lookup = null,
+    IReadOnlyList<string>? Accept = null);
 
 /// <summary>
 /// One style value of a field: a choice from <see cref="Values"/> (theme tokens such as "wide", "md", "start"), never

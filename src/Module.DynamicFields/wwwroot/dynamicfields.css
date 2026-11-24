@@ -90,3 +90,12 @@
 .df-unit-pair + .df-unit-pair { margin-top: 6px; }
 .df-source { padding: 8px 12px; border-radius: var(--mud-default-borderradius, 8px); background: var(--mud-palette-background-gray, rgba(127,127,127,.08)); white-space: pre-wrap; overflow-wrap: anywhere; }
 @media (max-width: 640px) { .df-unit-pair { grid-template-columns: 1fr; } }
+/* Asset values: one-click accept lists (Any file, Images, Video, ...). */
+.df-accept-presets { display: flex; flex-wrap: wrap; gap: 6px; margin: 4px 0 8px; }
+.df-accept-presets .mn-chip { margin-inline-start: 0; cursor: pointer; background: none; color: inherit; }
+.df-accept-presets .mn-chip[aria-pressed="true"] { background: var(--mud-palette-primary, #594ae2); border-color: var(--mud-palette-primary, #594ae2); color: var(--mud-palette-primary-text, #fff); }
+/* Asset values: the picked file beside its id. */
+.df-file { display: flex; align-items: center; gap: 8px; margin: 4px 0; font-size: 0.875rem; min-width: 0; }
+.df-file-thumb { width: 48px; height: 48px; object-fit: cover; border-radius: 4px; flex: none; }
+.df-file-icon { font-size: 1.25rem; flex: none; }
+.df-file-name { font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

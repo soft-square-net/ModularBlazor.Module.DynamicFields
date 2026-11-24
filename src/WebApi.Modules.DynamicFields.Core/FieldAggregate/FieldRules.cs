@@ -23,6 +23,8 @@ public static partial class FieldRules
     public const int LookupFilterValueMaxLength = 200;
     public const int LookupMaxSearchFields = 20;
     public const int LookupMaxSelections = 500;
+    public const int MaxAccept = 20;
+    public const int AcceptMaxLength = 100;
 
     /// <summary>The filter operators a lookup understands.</summary>
     public static IReadOnlyList<string> LookupOps { get; } =
@@ -43,6 +45,13 @@ public static partial class FieldRules
     /// <summary>A client module dialog id, <c>"{module id}/{name}"</c>.</summary>
     [GeneratedRegex("^[A-Za-z][A-Za-z0-9._-]*/[A-Za-z0-9._-]+$")]
     private static partial Regex DialogId();
+
+    /// <summary>
+    /// An entry of an Asset property's accept list, lowercase: a content type <c>image/png</c>, a family <c>image/*</c>
+    /// or an extension <c>.pdf</c>.
+    /// </summary>
+    [GeneratedRegex(@"^(?:[a-z0-9][a-z0-9!#$&^_.+-]*/(?:\*|[a-z0-9][a-z0-9!#$&^_.+-]*)|\.[a-z0-9][a-z0-9_-]*)$")]
+    private static partial Regex AcceptEntry();
 
     /// <summary>A lookup key, <c>"{prefix}.{name}"</c>: <c>inventory.stock-items</c>, <c>geo.cities</c>.</summary>
     [GeneratedRegex(@"^[A-Za-z0-9][A-Za-z0-9_-]*(?:\.[A-Za-z0-9][A-Za-z0-9_-]*)+$")]
@@ -134,8 +143,26 @@ public static partial class FieldRules
         else if (p.Lookup is not null)
             throw new DomainException($"Property '{key}': only a Lookup property has a lookup.");
 
+        IReadOnlyList<string>? accept = null;
+        if (p.Kind == PropertyKind.Asset) accept = CheckAccept(key, p.Accept);
+        else if (p.Accept is { Count: > 0 })
+            throw new DomainException($"Property '{key}': only an Asset property has accepted file types.");
+
         return p with { Key = key, Label = label, HelpText = help, SchemaProperty = schemaProperty, Options = options,
-            Translatable = textual ? p.Translatable : null, Lookup = lookup };
+            Translatable = textual ? p.Translatable : null, Lookup = lookup, Accept = accept };
+    }
+
+    /// <summary>Trimmed, lowercase and without repeats; null when empty (any file).</summary>
+    private static IReadOnlyList<string>? CheckAccept(string key, IReadOnlyList<string>? accept)
+    {
+        if (accept is null or { Count: 0 }) return null;
+        var entries = accept.Select(a => a?.Trim().ToLowerInvariant() ?? "").Distinct().ToList();
+        if (entries.Count > MaxAccept)
+            throw new DomainException($"Asset '{key}' accepts at most {MaxAccept} file types.");
+        foreach (var entry in entries)
+            if (entry.Length is 0 or > AcceptMaxLength || !AcceptEntry().IsMatch(entry))
+                throw new DomainException($"Asset '{key}': a file type is a content type (image/png), a family (image/*) or an extension (.pdf): '{entry}'.");
+        return entries;
     }
 
     private static LookupBinding CheckLookup(string key, bool multiple, LookupBinding? b)

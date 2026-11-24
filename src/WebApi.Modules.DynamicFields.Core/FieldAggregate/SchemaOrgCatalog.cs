@@ -4,6 +4,7 @@ namespace soft.square.net.WebApi.Modules.DynamicFields.Core.FieldAggregate;
 /// A schema.org property as the field builder offers it: the value kind it suggests (an image is an
 /// <see cref="PropertyKind.Asset"/>, keywords are <see cref="PropertyKind.Keyword"/> concepts, a section is a
 /// <see cref="PropertyKind.Term"/>), a label and a short explanation. The author can still change the kind.
+/// <see cref="Accept"/>: the files an Asset property takes by default (an image is <c>image/*</c>).
 /// </summary>
 public sealed record SchemaOrgProperty(
     string Name,
@@ -14,19 +15,22 @@ public sealed record SchemaOrgProperty(
     int? MaxLength = null,
     decimal? Minimum = null,
     decimal? Maximum = null,
-    IReadOnlyList<string>? Options = null);
+    IReadOnlyList<string>? Options = null,
+    IReadOnlyList<string>? Accept = null);
 
 /// <summary>
 /// A schema.org type the builder offers. <see cref="Properties"/> are its own (the parent's come through
 /// <see cref="SchemaOrgCatalog.PropertiesOf"/>); <see cref="Suggested"/> are ticked when an author picks the type
-/// (null: the parent's).
+/// (null: the parent's). <see cref="ContentAccept"/>: the files its <c>contentUrl</c> takes (an ImageObject's are images;
+/// null: the parent's, else any file).
 /// </summary>
 public sealed record SchemaOrgType(
     string Name,
     string? Parent,
     string Description,
     IReadOnlyList<string> Properties,
-    IReadOnlyList<string>? Suggested = null);
+    IReadOnlyList<string>? Suggested = null,
+    IReadOnlyList<string>? ContentAccept = null);
 
 /// <summary>
 /// The curated part of schema.org the builder works with: CreativeWork and the subtypes an editorial site publishes,
@@ -38,6 +42,7 @@ public static class SchemaOrgCatalog
 {
     private const string Duration = "An ISO 8601 duration, e.g. PT1M30S (1 minute 30 seconds).";
     private const string People = "Names of people or organizations.";
+    private static readonly string[] Images = ["image/*"];
 
     private static readonly SchemaOrgProperty[] AllProperties =
     [
@@ -48,8 +53,8 @@ public static class SchemaOrgCatalog
         new("url", "URL", PropertyKind.Url, "The item's own address."),
         new("sameAs", "Same as", PropertyKind.Url, "Pages about the same thing elsewhere (Wikipedia, Wikidata, an official site).", Multiple: true),
         new("identifier", "Identifier", PropertyKind.Text, "An id from another system (ISBN, DOI, product code)."),
-        new("image", "Image", PropertyKind.Asset, "An image of the item."),
-        new("thumbnailUrl", "Thumbnail", PropertyKind.Asset, "A small image shown in lists and previews."),
+        new("image", "Image", PropertyKind.Asset, "An image of the item.", Accept: Images),
+        new("thumbnailUrl", "Thumbnail", PropertyKind.Asset, "A small image shown in lists and previews.", Accept: Images),
         new("headline", "Headline", PropertyKind.Text, "The title as shown to readers; Google shows up to 110 characters.", MaxLength: 110),
         new("alternativeHeadline", "Alternative headline", PropertyKind.Text, "A secondary title or subtitle.", MaxLength: 200),
         new("abstract", "Abstract", PropertyKind.Text, "A summary of the work.", MaxLength: 2000),
@@ -201,11 +206,11 @@ public static class SchemaOrgCatalog
             ["contentUrl", "embedUrl", "duration", "width", "height", "uploadDate", "contentSize"],
             ["contentUrl", "name", "description", "encodingFormat"]),
         new("ImageObject", "MediaObject", "An image.", ["caption", "representativeOfPage"],
-            ["contentUrl", "caption", "creditText", "copyrightHolder", "license"]),
+            ["contentUrl", "caption", "creditText", "copyrightHolder", "license"], ContentAccept: Images),
         new("VideoObject", "MediaObject", "A video.", ["caption", "transcript", "videoQuality"],
-            ["contentUrl", "name", "description", "thumbnailUrl", "uploadDate", "duration", "transcript"]),
+            ["contentUrl", "name", "description", "thumbnailUrl", "uploadDate", "duration", "transcript"], ContentAccept: ["video/*"]),
         new("AudioObject", "MediaObject", "An audio file: a recording, a podcast.", ["caption", "transcript"],
-            ["contentUrl", "name", "description", "duration", "transcript"]),
+            ["contentUrl", "name", "description", "duration", "transcript"], ContentAccept: ["audio/*"]),
         new("Photograph", "CreativeWork", "A photograph as a work (its file is an ImageObject).", [],
             ["image", "name", "creator", "dateCreated", "creditText"]),
         new("Clip", "CreativeWork", "A short part of a video or audio.", ["clipNumber", "startOffset", "endOffset"],
@@ -296,12 +301,25 @@ public static class SchemaOrgCatalog
     }
 
     /// <summary>A field property made from a schema.org property, keyed by its name.</summary>
-    public static FieldProperty ToFieldProperty(string name, bool required = false)
+    public static FieldProperty ToFieldProperty(string name, bool required = false, string? type = null)
     {
         var p = Properties[name];
         return new FieldProperty(p.Name, p.Label, p.Kind, required, p.Multiple, p.Name, p.Description,
-            MaxLength: p.MaxLength, Minimum: p.Minimum, Maximum: p.Maximum, Options: p.Options);
+            MaxLength: p.MaxLength, Minimum: p.Minimum, Maximum: p.Maximum, Options: p.Options,
+            Accept: type is null ? p.Accept : AcceptFor(type, name));
     }
+
+    /// <summary>The files the type's <c>contentUrl</c> takes: its own, else its nearest parent's; null: any file.</summary>
+    public static IReadOnlyList<string>? ContentAcceptOf(string type)
+    {
+        for (var t = Find(type); t is not null; t = Find(t.Parent))
+            if (t.ContentAccept is { } accept) return accept;
+        return null;
+    }
+
+    /// <summary>The files a property of the type takes by default: contentUrl per type (a VideoObject's are videos).</summary>
+    public static IReadOnlyList<string>? AcceptFor(string type, string property) =>
+        property == "contentUrl" ? ContentAcceptOf(type) : Properties.GetValueOrDefault(property)?.Accept;
 }
 
 /// <summary>
