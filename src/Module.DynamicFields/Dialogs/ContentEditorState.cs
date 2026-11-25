@@ -43,9 +43,21 @@ public sealed class ContentEditorState
         return style;
     }
 
-    /// <summary>The required values left empty, as (owner path, message): checked before asking the server.</summary>
-    public IEnumerable<(string Path, string Message)> MissingRequired() =>
-        Values.Where(v => v.Required && !v.HasValue).Select(v => ($"/content/{v.Property.Key}", $"{v.Property.Label} is required."));
+    /// <summary>
+    /// The required values left empty, as (owner path, message): checked before asking the server. With a group, only
+    /// that group's values.
+    /// </summary>
+    public IEnumerable<(string Path, string Message)> MissingRequired(string? group = null) =>
+        Values.Where(v => v.Required && !v.HasValue && InGroup(v.Property.Key, group))
+            .Select(v => ($"/content/{v.Property.Key}", $"{v.Property.Label} is required."));
+
+    /// <summary>Whether a value is in a root field's value group (no group: every value is).</summary>
+    public bool InGroup(string key, string? group)
+    {
+        if (group is null || Field.Groups is not { Count: > 0 } groups) return true;
+        var property = Field.Properties.FirstOrDefault(p => p.Key == key);
+        return property is not null && (property.Group ?? groups[0].Key) == group;
+    }
 
     /// <summary>The value or style an issue's path belongs to (/content/topics/1 → /content/topics), or null.</summary>
     public string? OwnerPath(string path)

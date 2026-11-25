@@ -101,7 +101,7 @@
   "The editor as authors will see it. Try it: values you type here are not saved.": "المحرر كما سيراه المؤلفون. جرّبه: القيم التي تكتبها هنا لا تُحفظ.",
   "Check required values": "التحقق من القيم المطلوبة",
   "As schema.org data": "بيانات schema.org",
-  "What search engines and AI read from it (JSON-LD); ‹…› marks a value not filled in.": "ما تقرؤه منه محركات البحث والذكاء الاصطناعي (JSON-LD)؛ وتشير ‹…› إلى قيمة لم تُملأ.",
+  "What search engines and AI read from it (JSON-LD), as the server builds it; ‹…› marks a value not filled in.": "ما تقرؤه منه محركات البحث والذكاء الاصطناعي (JSON-LD) كما يبنيه الخادم؛ وتشير ‹…› إلى قيمة لم تُملأ.",
   "Other works": "أعمال أخرى",
   "New value": "قيمة جديدة",
   "Variant": "متغير",
@@ -210,5 +210,17 @@
   "Values, separated by commas": "قيم مفصولة بفواصل",
   "Add a filter": "إضافة عامل تصفية",
   "Every search applies them, and saved values must match them. Keys, not texts: a key filter takes the item's key.": "يطبّقها كل بحث، ويجب أن تطابقها القيم المحفوظة. مفاتيح لا نصوص: عامل تصفية المفتاح يأخذ مفتاح العنصر.",
-  "The lists could not be loaded: {0}": "تعذّر تحميل القوائم: {0}"
+  "The lists could not be loaded: {0}": "تعذّر تحميل القوائم: {0}",
+  "Value groups": "مجموعات القيم",
+  "Optional: sort a post's values into groups, such as the story and search and sharing, so each can be edited and routed apart (the SEO section gets its group). A value with no group is in the first.": "اختياري: وزّع قيم المنشور على مجموعات، مثل القصة والبحث والمشاركة، ليُحرَّر كلٌّ منها ويُوجَّه على حدة (يتلقى قسم تحسين محركات البحث مجموعته). القيمة التي بلا مجموعة تكون في الأولى.",
+  "Add Story and SEO groups": "إضافة مجموعتَي القصة وتحسين محركات البحث",
+  "Add a group": "إضافة مجموعة",
+  "Group": "المجموعة",
+  "Story": "القصة",
+  "Search and sharing": "البحث والمشاركة",
+  "The headline, the main image, who wrote it and when.": "العنوان والصورة الرئيسية ومن كتبه ومتى.",
+  "The summary and keywords search engines and link previews show.": "الملخص والكلمات المفتاحية التي تعرضها محركات البحث ومعاينات الروابط.",
+  "New group": "مجموعة جديدة",
+  "Building…": "جارٍ البناء…",
+  "The schema.org data could not be built: {0}": "تعذّر بناء بيانات schema.org: {0}"
 }

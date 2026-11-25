@@ -329,9 +329,9 @@ public static class SchemaOrgCatalog
 public static class StylePresets
 {
     public static StyleProperty Width { get; } = new("width", "Width", ["content", "wide", "full", "half", "third"], Responsive: true, Default: "content");
-    public static StyleProperty Align { get; } = new("align", "Alignment", ["start", "center", "end"], Default: "start");
+    public static StyleProperty Align { get; } = new("align", "Alignment", ["start", "center", "end"], Responsive: true, Default: "start");
     public static StyleProperty Spacing { get; } = new("spacing", "Spacing", ["none", "sm", "md", "lg", "xl"], Responsive: true, Default: "md");
-    public static StyleProperty Tone { get; } = new("tone", "Tone", ["default", "muted", "accent", "inverse"], Default: "default");
+    public static StyleProperty Tone { get; } = new("tone", "Tone", ["default", "muted", "accent", "inverse"], Responsive: true, Default: "default");
     public static StyleProperty Size { get; } = new("size", "Text size", ["sm", "md", "lg", "xl"], Responsive: true, Default: "md");
     public static StyleProperty Level { get; } = new("level", "Heading level", ["h2", "h3", "h4", "h5", "h6"], Default: "h2");
     public static StyleProperty Aspect { get; } = new("aspect", "Aspect ratio", ["auto", "1-1", "4-3", "3-2", "16-9", "21-9"], Responsive: true, Default: "auto");

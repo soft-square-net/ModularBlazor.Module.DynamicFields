@@ -82,7 +82,7 @@ public sealed class FieldDefinition : AggregateRoot<int>, ITenantOwned
         var snapshot = new FieldSnapshot(Key, LatestVersion + 1, draft.Title, draft.Description, draft.SchemaType, draft.CanBeRoot,
             draft.Properties, draft.Style,
             [.. draft.Children.Select(c => new PinnedChild(c.FieldKey, publishedChildren[c.FieldKey], c.Min, c.Max))],
-            draft.EditorDialog);
+            draft.EditorDialog, draft.Groups);
 
         var version = new FieldVersion(snapshot, publishedBy, now);
         _versions.Add(version);

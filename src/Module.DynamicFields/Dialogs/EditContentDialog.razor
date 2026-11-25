@@ -6,8 +6,11 @@
 @*
   Dialog "Module.DynamicFields/edit-content": edits one content node with the form its field defines. For any module
   (IModuleDialogs.ShowAsync); the Contents editor opens it for each node of a post.
-    parameters  { field: "block.image", version?: number (0 or none: the newest), content?: {...}, style?: {...} }
-    result      { field, version, content, style }   checked by the server before the dialog closes
+    parameters  { field: "block.image", version?: number (0 or none: the newest), content?: {...}, style?: {...},
+                  nodeId?: "n3f9c2a1b7d04", group?: "seo" (a root field's value group: only its values, no style) }
+    result      { field, version, nodeId, content, style }   checked by the server before the dialog closes
+  The result always has a node id: the one given, else a new one (NodeIds.New). Translation and design overlays key on
+  it, so a caller keeps it with the node. With a group, the other values come back as they were given.
   The form itself is ContentEditorForm, which the field builder also shows as its preview.
 *@
 
@@ -18,7 +21,7 @@
   }
   else
   {
-    <ContentEditorForm State="_state" Issues="_issues" OtherIssues="OtherIssues" StyleOpen="_styleOpen" />
+    <ContentEditorForm State="_state" Issues="_issues" OtherIssues="OtherIssues" StyleOpen="_styleOpen" Group="@_group" />
   }
 </div>
 <div class="mud-dialog-actions">
@@ -31,12 +34,14 @@
   [CascadingParameter] public IDialogReference Dialog { get; set; } = default!;
 
   /// <summary>The caller's parameters (web JSON).</summary>
-  private sealed record Parameters(string? Field, int? Version, JsonElement? Content, JsonElement? Style);
+  private sealed record Parameters(string? Field, int? Version, JsonElement? Content, JsonElement? Style, string? NodeId, string? Group);
 
   private ContentEditorState? _state;
   private Dictionary<string, string> _issues = [];
   private List<string> _otherIssues = [];
   private bool _styleOpen;
+  private string _nodeId = "";
+  private string? _group;
 
   private IReadOnlyList<string> OtherIssues => Error is null ? _otherIssues : [Error, .. _otherIssues];
 
@@ -54,6 +59,8 @@
     {
       var version = await Api.GetFieldVersionAsync(parameters.Field, parameters.Version ?? 0);
       _state = new ContentEditorState(version.Field, parameters.Content, parameters.Style);
+      _nodeId = NodeIds.OrNew(parameters.NodeId);
+      _group = version.Field.Groups?.Any(g => g.Key == parameters.Group) == true ? parameters.Group : null;
       _styleOpen = parameters.Style is { ValueKind: JsonValueKind.Object } style && style.EnumerateObject().Any();
     }, toast: false);
   }
@@ -67,7 +74,7 @@
     _otherIssues = [];
 
     // Required values first, without a round trip; then the server's check, which is the one that counts.
-    foreach (var (path, message) in _state.MissingRequired()) _issues[path] = message;
+    foreach (var (path, message) in _state.MissingRequired(_group)) _issues[path] = message;
     if (_issues.Count > 0) return;
 
     ContentReport? report = null;
@@ -80,9 +87,11 @@
     }), toast: false);
     if (!checkedOk || report is null) return;
 
-    if (!report.Valid)
+    // With a group, the other groups' values are someone else's to fix: only this group's issues (and the style's) stop it.
+    var issues = report.Issues.Where(i => _group is null || OwnerKey(i.Path) is not { } key || _state.InGroup(key, _group)).ToList();
+    if (issues.Count > 0)
     {
-      foreach (var issue in report.Issues)
+      foreach (var issue in issues)
       {
         var at = _state.OwnerPath(issue.Path);
         if (at is null) _otherIssues.Add($"{issue.Path}: {issue.Message}");
@@ -92,6 +101,13 @@
       return;
     }
 
-    Dialog.Close(new { field = _state.Field.Key, version = _state.Field.Version, content, style });
+    Dialog.Close(new { field = _state.Field.Key, version = _state.Field.Version, nodeId = _nodeId, content, style });
+  }
+
+  /// <summary>The value key an issue's path is under (/content/topics/1 → topics), or null for a style or other issue.</summary>
+  private static string? OwnerKey(string path)
+  {
+    var parts = path.Split('/', StringSplitOptions.RemoveEmptyEntries);
+    return parts.Length >= 2 && parts[0] == "content" ? parts[1].Replace("~1", "/").Replace("~0", "~") : null;
   }
 }

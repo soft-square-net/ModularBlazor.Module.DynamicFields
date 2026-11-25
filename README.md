@@ -10,6 +10,9 @@ A field is one kind of content (a news post, a paragraph, an image, an album) as
 - its **values** (`properties`): key, label, kind (Text, RichText, Integer, Decimal, Boolean, Date, DateTime, Url, Choice,
   Asset, Keyword, Term, Lookup), required, list or single, limits, and the schema.org property it is published as; an
   Asset (a file) may say which files it takes (`accept`: `image/*`, `video/mp4`, `.pdf`, ...);
+- for a field a post can be made of, optional **value groups** (`groups`: `main`, `seo`, ...): each value is in one
+  (`group`; none: the first), so one group can be edited, reviewed and routed apart (the SEO section gets `seo`). Content
+  still stores every value flat;
 - its **style** choices: theme tokens, optionally per breakpoint (`{ "base": "full", "md": "half" }`), never free CSS;
 - the fields it may contain as **children**, with counts. Fields are reusable: an image can be a child of a post, an
   album and a reportage;
@@ -53,6 +56,7 @@ The module's id, route prefix and database schema are `dynamicfields`; its permi
 | `POST /content/validate-node` `{ field, fieldVersion, content, style }` | `dynamicfields.read` | `ValidateNodeQuery`: one node's values and style (no children), the same report; 404 if the version is not published |
 | `POST /content/translations/check` `{ root, translation? }` | `dynamicfields.read` | `CheckTranslationQuery`: the tree's translatable values (`units`: node id, key, source, `sourceHash`, state) and, with an overlay, its `issues` and a `summary` of current, stale and missing |
 | `POST /content/translations/apply` `{ root, translations, culture?, useStale? }` | `dynamicfields.read` | `ApplyTranslationsQuery`: the tree with its text in the reader's culture (the culture's overlay, then its parents', then the source), the `chain` used and counts |
+| `POST /content/jsonld` `{ root, assets?, names?, url?, language?, draft?, placeholders? }` | `dynamicfields.read` | `BuildJsonLdQuery`: the post as schema.org JSON-LD (see "JSON-LD"), `{ jsonLd, skipped }`; 404 if the root's version is not published (and no `draft` is given) |
 | `GET /catalog/schema-org` | `dynamicfields.read` | `GetSchemaOrgCatalogQuery`: the schema.org types (path, every property, suggested ones), their properties (label, suggested kind, limits) and the style presets |
 | `GET /catalog/starter-fields` | `dynamicfields.read` | `ListStarterFieldsQuery`: the starter library, each marked `installed` when the tenant has a field with its key |
 | `POST /catalog/starter-fields/install` `{ keys? }` | `dynamicfields.manage` | `InstallStarterFieldsCommand`: creates and publishes them (no keys: all) with the fields they contain; `{ installed, skipped, drafts }` |
@@ -61,7 +65,8 @@ A broken rule in a draft (a bad key, an unknown schema.org type, a choice withou
 as its detail. Content validation checks, at every node: the field version is published; the root can be a post; the
 parent allows the child, at the pinned version, within its counts; the content has exactly the field's values, of the
 right kinds and within their limits; the style uses only the field's tokens and breakpoints (`base`, `sm`, `md`, `lg`,
-`xl`). A tree has at most 500 nodes and 12 levels, as in the Contents module.
+`xl`); a node id, when given, is 1 to 128 characters, not `$root`, and used **once** in the tree (translation and design
+overlays key on it). A tree has at most 500 nodes and 12 levels, as in the Contents module.
 
 Every call needs a signed-in caller in a tenant (`X-Tenant` header or the token's tenant). The setting
 `DynamicFields:MaxPageSize` (default 100) caps the page size; change it on the Host Modules page.
@@ -75,12 +80,15 @@ and recipes, books, ...), each with the properties search engines and AI read. E
 suggests the properties to start with. Image properties (`image`, `thumbnailUrl`) accept `image/*`, and a media type's
 `contentUrl` accepts its media (`ImageObject`: `image/*`, `VideoObject`: `video/*`, `AudioObject`: `audio/*`; a plain
 `MediaObject`: any file). The supported types of a field are exactly the catalog's. `StylePresets` holds
-common style choices (width, alignment, spacing, tone, text size, heading level, aspect ratio, columns, layout).
+common style choices (width, alignment, spacing, tone, text size, heading level, aspect ratio, columns, layout); width,
+alignment, spacing, tone, text size, aspect ratio and columns are responsive, so the designer's Mobile, Tablet and Desktop
+views can set them apart.
 
 The **starter library** (`StarterFields`) is ready-made fields built on it, with the values search engines ask for
 marked required: the blocks `block.heading`, `block.text`, `block.paragraph`, `block.quote`, `block.image` (with
 required alternative text), `block.video`, `block.audio`, `block.gallery` (of images), and the posts `post.article`,
-`post.news` and `post.blog`, which may contain any block. A tenant installs them on demand; installed fields are
+`post.news` and `post.blog`, which may contain any block. The posts group their values: `main` (Story) and `seo` (Search
+and sharing: the summary and keywords). A tenant installs them on demand; installed fields are
 ordinary fields it can change and publish again. Installing never overwrites a key the tenant has; a parent whose child
 exists unpublished is created as a draft.
 
@@ -92,13 +100,15 @@ field in the **builder** (`/dynamicfields/build?key=block.image`; "New field" op
 
 1. **What it is**: key, title, description, the schema.org type (grouped by family, with its description and path) and
    whether a post can be made of it. Picking a type for a field without values adds the type's suggested values.
-2. **Values**: one row per value (label, key, kind, schema.org property, required, list, help, limits, options), to
-   reorder or remove; below, the type's other schema.org properties to add with one click (filterable, suggested
-   first), or a custom value.
+2. **Values**: one row per value (label, key, kind, schema.org property, required, list, help, limits, options, and its
+   group when the field has groups), to reorder or remove; below, the type's other schema.org properties to add with one
+   click (filterable, suggested first), or a custom value. A post field can define its **value groups** here ("Add Story
+   and SEO groups" in one click, which also moves the summary and keywords to SEO).
 3. **Style**: the presets to add with one click, or a custom style; tokens, default, responsive.
 4. **What it can contain**: the tenant's fields to allow as children, with minimum and maximum counts.
 
-Beside it, a live **preview** shows the edit form exactly as authors will see it, and the values as schema.org JSON-LD.
+Beside it, a live **preview** shows the edit form exactly as authors will see it (under its groups' headings), and the
+values as schema.org JSON-LD, built by the server from the unsaved draft (`POST /content/jsonld` with `draft`).
 The draft's JSON stays available in the **JSON** tab. Save, Publish, "Try the editor" (the edit dialog on the newest
 version) and Delete (while never published) are at the top. Everything goes through `DynamicFieldsClient`, so what a
 user may do is what the API allows; its errors (403, 409 with the broken rule, ...) show as messages.
@@ -110,9 +120,13 @@ user may do is what the API allows; its errors (403, 409 with the broken rule, .
 
 ```csharp
 var result = await ModuleDialogs.ShowAsync("Module.DynamicFields/edit-content",
-    new { field = "block.image", version = 2, content, style }); // version, content and style are optional
-if (!result.Canceled) { /* result.Data: { field, version, content, style } */ }
+    new { field = "block.image", version = 2, content, style, nodeId, group }); // all but field are optional
+if (!result.Canceled) { /* result.Data: { field, version, nodeId, content, style } */ }
 ```
+
+The result always has a **node id**: the one given, else a new one (`n` and 12 hex digits). Keep it with the node: overlays
+key on it. With `group` (a root field's value group, e.g. `seo`), the dialog shows only that group's values and no style,
+checks only them, and returns the other values as they were given.
 
 It loads the field version (the newest when none is given) and builds one control per value: text, a textarea for rich
 text, number, checkbox, date, date and time, URL, a select (or checkboxes when multiple) for a choice, and a list with
@@ -165,6 +179,26 @@ if (!result.Canceled) { /* result.Data: the whole overlay { language, nodes }, c
 It shows each value's source beside an input in the target language (right to left for Arabic and the other RTL
 languages), its state, "Copy the source" and "Still right" for a stale one. The field builder's "Try translating"
 button opens it with the content the editor returned.
+
+### JSON-LD
+
+`JsonLdBuilder` (Core) turns a post into schema.org JSON-LD from its kind and each content's schema.org mapping;
+`POST /content/jsonld` serves it, and the field builder's preview uses it. The request's `root` is the post with its
+contents as children, in reading order. This module only has ids, so the caller sends what it knows about them: `assets`
+(by id: `{ url, width?, height?, encodingFormat? }`, from Storage) and `names` (keyword concepts and taxonomy terms, by id);
+`url` and `language` give `url`/`mainEntityOfPage` and `inLanguage`.
+
+| Source | JSON-LD |
+| --- | --- |
+| The root's values | Under their schema.org property: an image file is an `ImageObject` (url, width, height), another file its url; a person (`author`, `editor`, ...) a `Person`, a publisher an `Organization`; `about`/`mentions` a `Thing`; a keyword or term its name; a lookup item its text; rich text plain text |
+| An image content (`ImageObject`) | Added to `image`: an `ImageObject` with `contentUrl`, `url`, `width`, `height` and its own values (caption, credit, ...) |
+| A video, an audio | `video`, `audio`: the object with `contentUrl`, size and its values |
+| A gallery (`MediaGallery`) | Its images and videos, to `associatedMedia` |
+| A quotation | `citation`: a `Quotation` (`spokenByCharacter` a `Person`) |
+| Any other content | Its `text`/`headline` values to `articleBody` (`text` when the kind is not an Article), in reading order, a blank line between |
+
+A value whose file or name is not given is left out, and so is a media content without its file; a node whose field
+version is not published is left out and listed in `skipped`. `placeholders: true` shows what is empty as `‹label›`.
 
 ## Building
 

@@ -81,6 +81,36 @@ public class ContentTreeValidatorTests
             .ShouldHaveSingleItem().Path.ShouldBe("/children/0/style/align");
 
     [Fact]
+    public void UniqueNodeIdsAreFine() =>
+        Check(Post(Node("block.paragraph", """{ "text": "x" }""") with { NodeId = "p1" },
+            Node("block.image", """{ "asset": "a" }""") with { NodeId = "img1" }) with { NodeId = "post-7" }).ShouldBeEmpty();
+
+    [Fact]
+    public void ANodeIdIsUsedOnce()
+    {
+        var issues = Check(Post(
+            Node("block.paragraph", """{ "text": "x" }""") with { NodeId = "p1" },
+            Node("block.paragraph", """{ "text": "y" }""") with { NodeId = "p1" }));
+
+        var issue = issues.ShouldHaveSingleItem();
+        issue.Path.ShouldBe("/children/1/nodeId");
+        issue.Message.ShouldContain("'/children/0'");
+    }
+
+    [Fact]
+    public void AChildCannotReuseTheRootsNodeId() =>
+        Check(Post(Node("block.paragraph", """{ "text": "x" }""") with { NodeId = "post-7" }) with { NodeId = "post-7" })
+            .ShouldHaveSingleItem().Message.ShouldContain("the root");
+
+    [Theory]
+    [InlineData("$root")]
+    [InlineData(" ")]
+    [InlineData(" p1")]
+    public void ANodeIdIsNotBlankNorTheRootsOverlayKey(string id) =>
+        Check(Post(Node("block.paragraph", """{ "text": "x" }""") with { NodeId = id }))
+            .ShouldHaveSingleItem().Path.ShouldBe("/children/0/nodeId");
+
+    [Fact]
     public void ContentAndStyleAreObjects()
     {
         var issues = Check(Post() with { Content = Json("[]"), Style = Json("\"wide\"") });

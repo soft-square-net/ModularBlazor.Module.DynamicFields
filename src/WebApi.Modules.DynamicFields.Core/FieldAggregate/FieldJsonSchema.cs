@@ -5,7 +5,8 @@ namespace soft.square.net.WebApi.Modules.DynamicFields.Core.FieldAggregate;
 /// <summary>
 /// A published field as standard JSON Schema (draft 2020-12), for tools and other platforms. The module validates with
 /// <see cref="ContentValidation.ContentTreeValidator"/>, which applies the same rules plus the parent/child ones. The
-/// schema.org mapping travels as <c>x-schemaOrg</c> annotations, which JSON Schema validators ignore.
+/// schema.org mapping travels as <c>x-schemaOrg</c> annotations, a root field's value groups as <c>x-groups</c> (and each
+/// value's as <c>x-group</c>), which JSON Schema validators ignore.
 /// </summary>
 public static class FieldJsonSchema
 {
@@ -22,6 +23,7 @@ public static class FieldJsonSchema
             schema["title"] = p.Label;
             if (p.HelpText is not null) schema["description"] = p.HelpText;
             if (p.SchemaProperty is not null) schema["x-schemaOrg"] = p.SchemaProperty;
+            if (p.Group is not null) schema["x-group"] = p.Group;
             properties[p.Key] = schema;
         }
 
@@ -36,6 +38,13 @@ public static class FieldJsonSchema
             ["x-schemaOrg"] = field.SchemaType
         };
         if (field.Description is not null) root["description"] = field.Description;
+        if (field.Groups is { Count: > 0 } groups)
+            root["x-groups"] = new JsonArray([.. groups.Select(g =>
+            {
+                var group = new JsonObject { ["key"] = g.Key, ["title"] = g.Label };
+                if (g.Description is not null) group["description"] = g.Description;
+                return (JsonNode)group;
+            })]);
         var required = field.Properties.Where(p => p.Required).Select(p => (JsonNode)p.Key).ToArray();
         if (required.Length > 0) root["required"] = new JsonArray(required);
         return root;
