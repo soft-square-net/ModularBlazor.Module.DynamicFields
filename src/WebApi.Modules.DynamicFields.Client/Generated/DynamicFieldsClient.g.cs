@@ -113,6 +113,14 @@ namespace soft.square.net.WebApi.Modules.DynamicFields.Client
 
         /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
         /// <summary>
+        /// Build a post's schema.org JSON-LD from its kind and its contents, in reading order.
+        /// </summary>
+        /// <returns>OK</returns>
+        /// <exception cref="DynamicFieldsApiException">A server side error occurred.</exception>
+        System.Threading.Tasks.Task<JsonLdReport> BuildJsonLdAsync(JsonLdRequest body, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken));
+
+        /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <summary>
         /// The curated schema.org types (with their properties and suggestions) and the style presets.
         /// </summary>
         /// <returns>OK</returns>
@@ -1070,6 +1078,87 @@ namespace soft.square.net.WebApi.Modules.DynamicFields.Client
 
         /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
         /// <summary>
+        /// Build a post's schema.org JSON-LD from its kind and its contents, in reading order.
+        /// </summary>
+        /// <returns>OK</returns>
+        /// <exception cref="DynamicFieldsApiException">A server side error occurred.</exception>
+        public virtual async System.Threading.Tasks.Task<JsonLdReport> BuildJsonLdAsync(JsonLdRequest body, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken))
+        {
+            if (body == null)
+                throw new System.ArgumentNullException("body");
+
+            var client_ = _httpClient;
+            var disposeClient_ = false;
+            try
+            {
+                using (var request_ = new System.Net.Http.HttpRequestMessage())
+                {
+                    var json_ = System.Text.Json.JsonSerializer.SerializeToUtf8Bytes(body, JsonSerializerSettings);
+                    var content_ = new System.Net.Http.ByteArrayContent(json_);
+                    content_.Headers.ContentType = System.Net.Http.Headers.MediaTypeHeaderValue.Parse("application/json");
+                    request_.Content = content_;
+                    request_.Method = new System.Net.Http.HttpMethod("POST");
+                    request_.Headers.Accept.Add(System.Net.Http.Headers.MediaTypeWithQualityHeaderValue.Parse("application/json"));
+
+                    var urlBuilder_ = new System.Text.StringBuilder();
+                
+                    // Operation Path: "api/dynamicfields/content/jsonld"
+                    urlBuilder_.Append("api/dynamicfields/content/jsonld");
+
+                    PrepareRequest(client_, request_, urlBuilder_);
+
+                    var url_ = urlBuilder_.ToString();
+                    request_.RequestUri = new System.Uri(url_, System.UriKind.RelativeOrAbsolute);
+
+                    PrepareRequest(client_, request_, url_);
+
+                    var response_ = await client_.SendAsync(request_, System.Net.Http.HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false);
+                    var disposeResponse_ = true;
+                    try
+                    {
+                        var headers_ = new System.Collections.Generic.Dictionary<string, System.Collections.Generic.IEnumerable<string>>();
+                        foreach (var item_ in response_.Headers)
+                            headers_[item_.Key] = item_.Value;
+                        if (response_.Content != null && response_.Content.Headers != null)
+                        {
+                            foreach (var item_ in response_.Content.Headers)
+                                headers_[item_.Key] = item_.Value;
+                        }
+
+                        ProcessResponse(client_, response_);
+
+                        var status_ = (int)response_.StatusCode;
+                        if (status_ == 200)
+                        {
+                            var objectResponse_ = await ReadObjectResponseAsync<JsonLdReport>(response_, headers_, cancellationToken).ConfigureAwait(false);
+                            if (objectResponse_.Object == null)
+                            {
+                                throw new DynamicFieldsApiException("Response was null which was not expected.", status_, objectResponse_.Text, headers_, null);
+                            }
+                            return objectResponse_.Object;
+                        }
+                        else
+                        {
+                            var responseData_ = response_.Content == null ? null : await ReadAsStringAsync(response_.Content, cancellationToken).ConfigureAwait(false);
+                            throw new DynamicFieldsApiException("The HTTP status code of the response was not expected (" + status_ + ").", status_, responseData_, headers_, null);
+                        }
+                    }
+                    finally
+                    {
+                        if (disposeResponse_)
+                            response_.Dispose();
+                    }
+                }
+            }
+            finally
+            {
+                if (disposeClient_)
+                    client_.Dispose();
+            }
+        }
+
+        /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <summary>
         /// The curated schema.org types (with their properties and suggestions) and the style presets.
         /// </summary>
         /// <returns>OK</returns>
@@ -1677,6 +1766,9 @@ namespace soft.square.net.WebApi.Modules.DynamicFields.Client
         [System.Text.Json.Serialization.JsonPropertyName("editorDialog")]
         public string? EditorDialog { get; set; } = default!;
 
+        [System.Text.Json.Serialization.JsonPropertyName("groups")]
+        public System.Collections.Generic.IReadOnlyList<PropertyGroup>? Groups { get; set; } = default!;
+
         private System.Collections.Generic.IDictionary<string, object>? _additionalProperties;
 
         [System.Text.Json.Serialization.JsonExtensionData]
@@ -1769,6 +1861,9 @@ namespace soft.square.net.WebApi.Modules.DynamicFields.Client
         [System.Text.Json.Serialization.JsonPropertyName("accept")]
         public System.Collections.Generic.IReadOnlyList<string>? Accept { get; set; } = default!;
 
+        [System.Text.Json.Serialization.JsonPropertyName("group")]
+        public string? Group { get; set; } = default!;
+
         private System.Collections.Generic.IDictionary<string, object>? _additionalProperties;
 
         [System.Text.Json.Serialization.JsonExtensionData]
@@ -1819,6 +1914,9 @@ namespace soft.square.net.WebApi.Modules.DynamicFields.Client
 
         [System.Text.Json.Serialization.JsonPropertyName("editorDialog")]
         public string? EditorDialog { get; set; } = default!;
+
+        [System.Text.Json.Serialization.JsonPropertyName("groups")]
+        public System.Collections.Generic.IReadOnlyList<PropertyGroup>? Groups { get; set; } = default!;
 
         private System.Collections.Generic.IDictionary<string, object>? _additionalProperties;
 
@@ -1923,6 +2021,94 @@ namespace soft.square.net.WebApi.Modules.DynamicFields.Client
         [System.Text.Json.Serialization.JsonPropertyName("publishedBy")]
         [System.ComponentModel.DataAnnotations.Required(AllowEmptyStrings = true)]
         public string PublishedBy { get; set; } = default!;
+
+        private System.Collections.Generic.IDictionary<string, object>? _additionalProperties;
+
+        [System.Text.Json.Serialization.JsonExtensionData]
+        public System.Collections.Generic.IDictionary<string, object> AdditionalProperties
+        {
+            get { return _additionalProperties ?? (_additionalProperties = new System.Collections.Generic.Dictionary<string, object>()); }
+            set { _additionalProperties = value; }
+        }
+
+    }
+
+    [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "14.8.0.0 (NJsonSchema v11.6.2.0 (Newtonsoft.Json v13.0.0.0))")]
+    public partial class JsonLdAsset
+    {
+
+        [System.Text.Json.Serialization.JsonPropertyName("url")]
+        [System.ComponentModel.DataAnnotations.Required(AllowEmptyStrings = true)]
+        public string Url { get; set; } = default!;
+
+        [System.Text.Json.Serialization.JsonPropertyName("width")]
+        public int? Width { get; set; } = default!;
+
+        [System.Text.Json.Serialization.JsonPropertyName("height")]
+        public int? Height { get; set; } = default!;
+
+        [System.Text.Json.Serialization.JsonPropertyName("encodingFormat")]
+        public string? EncodingFormat { get; set; } = default!;
+
+        private System.Collections.Generic.IDictionary<string, object>? _additionalProperties;
+
+        [System.Text.Json.Serialization.JsonExtensionData]
+        public System.Collections.Generic.IDictionary<string, object> AdditionalProperties
+        {
+            get { return _additionalProperties ?? (_additionalProperties = new System.Collections.Generic.Dictionary<string, object>()); }
+            set { _additionalProperties = value; }
+        }
+
+    }
+
+    [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "14.8.0.0 (NJsonSchema v11.6.2.0 (Newtonsoft.Json v13.0.0.0))")]
+    public partial class JsonLdReport
+    {
+
+        [System.Text.Json.Serialization.JsonPropertyName("jsonLd")]
+        [System.ComponentModel.DataAnnotations.Required]
+        public JsonElement JsonLd { get; set; } = default!;
+
+        [System.Text.Json.Serialization.JsonPropertyName("skipped")]
+        [System.ComponentModel.DataAnnotations.Required]
+        public System.Collections.Generic.IReadOnlyList<ContentIssue> Skipped { get; set; } = new System.Collections.Generic.List<ContentIssue>();
+
+        private System.Collections.Generic.IDictionary<string, object>? _additionalProperties;
+
+        [System.Text.Json.Serialization.JsonExtensionData]
+        public System.Collections.Generic.IDictionary<string, object> AdditionalProperties
+        {
+            get { return _additionalProperties ?? (_additionalProperties = new System.Collections.Generic.Dictionary<string, object>()); }
+            set { _additionalProperties = value; }
+        }
+
+    }
+
+    [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "14.8.0.0 (NJsonSchema v11.6.2.0 (Newtonsoft.Json v13.0.0.0))")]
+    public partial class JsonLdRequest
+    {
+
+        [System.Text.Json.Serialization.JsonPropertyName("root")]
+        [System.ComponentModel.DataAnnotations.Required]
+        public ContentNode Root { get; set; } = new ContentNode();
+
+        [System.Text.Json.Serialization.JsonPropertyName("assets")]
+        public System.Collections.Generic.IDictionary<string, JsonLdAsset>? Assets { get; set; } = default!;
+
+        [System.Text.Json.Serialization.JsonPropertyName("names")]
+        public System.Collections.Generic.IDictionary<string, string>? Names { get; set; } = default!;
+
+        [System.Text.Json.Serialization.JsonPropertyName("url")]
+        public string? Url { get; set; } = default!;
+
+        [System.Text.Json.Serialization.JsonPropertyName("language")]
+        public string? Language { get; set; } = default!;
+
+        [System.Text.Json.Serialization.JsonPropertyName("draft")]
+        public FieldDraft? Draft { get; set; } = default!;
+
+        [System.Text.Json.Serialization.JsonPropertyName("placeholders")]
+        public bool? Placeholders { get; set; } = default!;
 
         private System.Collections.Generic.IDictionary<string, object>? _additionalProperties;
 
@@ -2131,6 +2317,32 @@ namespace soft.square.net.WebApi.Modules.DynamicFields.Client
 
         [System.Text.Json.Serialization.JsonPropertyName("max")]
         public int? Max { get; set; } = default!;
+
+        private System.Collections.Generic.IDictionary<string, object>? _additionalProperties;
+
+        [System.Text.Json.Serialization.JsonExtensionData]
+        public System.Collections.Generic.IDictionary<string, object> AdditionalProperties
+        {
+            get { return _additionalProperties ?? (_additionalProperties = new System.Collections.Generic.Dictionary<string, object>()); }
+            set { _additionalProperties = value; }
+        }
+
+    }
+
+    [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "14.8.0.0 (NJsonSchema v11.6.2.0 (Newtonsoft.Json v13.0.0.0))")]
+    public partial class PropertyGroup
+    {
+
+        [System.Text.Json.Serialization.JsonPropertyName("key")]
+        [System.ComponentModel.DataAnnotations.Required(AllowEmptyStrings = true)]
+        public string Key { get; set; } = default!;
+
+        [System.Text.Json.Serialization.JsonPropertyName("label")]
+        [System.ComponentModel.DataAnnotations.Required(AllowEmptyStrings = true)]
+        public string Label { get; set; } = default!;
+
+        [System.Text.Json.Serialization.JsonPropertyName("description")]
+        public string? Description { get; set; } = default!;
 
         private System.Collections.Generic.IDictionary<string, object>? _additionalProperties;
 

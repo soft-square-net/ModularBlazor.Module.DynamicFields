@@ -25,6 +25,7 @@ public static partial class FieldRules
     public const int LookupMaxSelections = 500;
     public const int MaxAccept = 20;
     public const int AcceptMaxLength = 100;
+    public const int MaxGroups = 20;
 
     /// <summary>The filter operators a lookup understands.</summary>
     public static IReadOnlyList<string> LookupOps { get; } =
@@ -79,10 +80,13 @@ public static partial class FieldRules
         if (!SchemaOrg.CreativeWorkTypes.Contains(draft.SchemaType ?? ""))
             throw new DomainException($"'{draft.SchemaType}' is not a supported schema.org type; use one of: {string.Join(", ", SchemaOrg.CreativeWorkTypes.Order())}.");
 
+        var groups = CheckGroups(draft.Groups, draft.CanBeRoot);
+
         var properties = (draft.Properties ?? []).Select(CheckProperty).ToList();
         if (properties.Count > MaxProperties) throw new DomainException($"A field has at most {MaxProperties} properties.");
         Unique(properties.Select(p => p.Key), "property");
         CheckLookupParents(properties);
+        properties = InGroups(properties, groups);
 
         var style = (draft.Style ?? []).Select(CheckStyle).ToList();
         if (style.Count > MaxStyleProperties) throw new DomainException($"A field has at most {MaxStyleProperties} style properties.");
@@ -96,7 +100,45 @@ public static partial class FieldRules
         if (dialog is not null && (dialog.Length > DialogIdMaxLength || !DialogId().IsMatch(dialog)))
             throw new DomainException($"The editor dialog is a dialog id, \"{{module id}}/{{name}}\" (e.g. Module.Media/edit-image): '{dialog}'.");
 
-        return new FieldDraft(title, draft.SchemaType!, draft.CanBeRoot, properties, style, children, description, dialog);
+        return new FieldDraft(title, draft.SchemaType!, draft.CanBeRoot, properties, style, children, description, dialog, groups);
+    }
+
+    /// <summary>A root field's value groups, trimmed; null when there are none.</summary>
+    private static IReadOnlyList<PropertyGroup>? CheckGroups(IReadOnlyList<PropertyGroup>? groups, bool canBeRoot)
+    {
+        if (groups is null or { Count: 0 }) return null;
+        if (!canBeRoot) throw new DomainException("Only a field a post can be made of (a root) groups its values.");
+        if (groups.Count > MaxGroups) throw new DomainException($"A field has at most {MaxGroups} value groups.");
+        var checkedGroups = groups.Select(g =>
+        {
+            if (g is null) throw new DomainException("A value group is missing.");
+            var key = g.Key?.Trim() ?? "";
+            if (key.Length is 0 or > KeyMaxLength || !CamelCase().IsMatch(key))
+                throw new DomainException($"A value group's key is camelCase (e.g. seo), at most {KeyMaxLength} characters: '{g.Key}'.");
+            var label = Text(g.Label, $"Value group '{key}' needs a label", LabelMaxLength, required: true)!;
+            var description = Text(g.Description, $"The description of value group '{key}'", HelpTextMaxLength, required: false);
+            return new PropertyGroup(key, label, description);
+        }).ToList();
+        Unique(checkedGroups.Select(g => g.Key), "value group");
+        return checkedGroups;
+    }
+
+    /// <summary>Each value in a declared group (none given: the first); no group at all when the field has none.</summary>
+    private static List<FieldProperty> InGroups(List<FieldProperty> properties, IReadOnlyList<PropertyGroup>? groups)
+    {
+        if (groups is null)
+        {
+            var grouped = properties.FirstOrDefault(p => p.Group is not null);
+            if (grouped is not null) throw new DomainException($"Property '{grouped.Key}' is in group '{grouped.Group}', but the field has no value groups.");
+            return properties;
+        }
+        var keys = groups.Select(g => g.Key).ToHashSet(StringComparer.Ordinal);
+        return [.. properties.Select(p =>
+        {
+            if (p.Group is null) return p with { Group = groups[0].Key };
+            if (!keys.Contains(p.Group)) throw new DomainException($"Property '{p.Key}': the field has no value group '{p.Group}'.");
+            return p;
+        })];
     }
 
     private static FieldProperty CheckProperty(FieldProperty p)
@@ -148,8 +190,10 @@ public static partial class FieldRules
         else if (p.Accept is { Count: > 0 })
             throw new DomainException($"Property '{key}': only an Asset property has accepted file types.");
 
+        var group = string.IsNullOrWhiteSpace(p.Group) ? null : p.Group.Trim();
+
         return p with { Key = key, Label = label, HelpText = help, SchemaProperty = schemaProperty, Options = options,
-            Translatable = textual ? p.Translatable : null, Lookup = lookup, Accept = accept };
+            Translatable = textual ? p.Translatable : null, Lookup = lookup, Accept = accept, Group = group };
     }
 
     /// <summary>Trimmed, lowercase and without repeats; null when empty (any file).</summary>

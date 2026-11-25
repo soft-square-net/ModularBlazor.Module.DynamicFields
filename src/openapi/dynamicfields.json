@@ -401,6 +401,37 @@
         }
       }
     },
+    "/api/dynamicfields/content/jsonld": {
+      "post": {
+        "tags": [
+          "Content"
+        ],
+        "summary": "Build a post's schema.org JSON-LD from its kind and its contents, in reading order.",
+        "operationId": "DynamicFields_BuildJsonLd",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/JsonLdRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JsonLdReport"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/dynamicfields/catalog/schema-org": {
       "get": {
         "tags": [
@@ -722,6 +753,15 @@
               "null",
               "string"
             ]
+          },
+          "groups": {
+            "type": [
+              "null",
+              "array"
+            ],
+            "items": {
+              "$ref": "#/components/schemas/PropertyGroup"
+            }
           }
         }
       },
@@ -852,6 +892,12 @@
             "items": {
               "type": "string"
             }
+          },
+          "group": {
+            "type": [
+              "null",
+              "string"
+            ]
           }
         }
       },
@@ -915,6 +961,15 @@
               "null",
               "string"
             ]
+          },
+          "groups": {
+            "type": [
+              "null",
+              "array"
+            ],
+            "items": {
+              "$ref": "#/components/schemas/PropertyGroup"
+            }
           }
         }
       },
@@ -1010,6 +1065,118 @@
         }
       },
       "JsonElement": { },
+      "JsonLdAsset": {
+        "required": [
+          "url"
+        ],
+        "type": "object",
+        "properties": {
+          "url": {
+            "type": "string"
+          },
+          "width": {
+            "type": [
+              "null",
+              "integer"
+            ],
+            "format": "int32"
+          },
+          "height": {
+            "type": [
+              "null",
+              "integer"
+            ],
+            "format": "int32"
+          },
+          "encodingFormat": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
+      "JsonLdReport": {
+        "required": [
+          "jsonLd",
+          "skipped"
+        ],
+        "type": "object",
+        "properties": {
+          "jsonLd": {
+            "$ref": "#/components/schemas/JsonElement"
+          },
+          "skipped": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ContentIssue"
+            }
+          }
+        }
+      },
+      "JsonLdRequest": {
+        "required": [
+          "root",
+          "assets",
+          "names",
+          "url",
+          "language",
+          "draft",
+          "placeholders"
+        ],
+        "type": "object",
+        "properties": {
+          "root": {
+            "$ref": "#/components/schemas/ContentNode"
+          },
+          "assets": {
+            "type": [
+              "null",
+              "object"
+            ],
+            "additionalProperties": {
+              "$ref": "#/components/schemas/JsonLdAsset"
+            }
+          },
+          "names": {
+            "type": [
+              "null",
+              "object"
+            ],
+            "additionalProperties": {
+              "type": "string"
+            }
+          },
+          "url": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "language": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "draft": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/FieldDraft"
+              }
+            ]
+          },
+          "placeholders": {
+            "type": [
+              "null",
+              "boolean"
+            ]
+          }
+        }
+      },
       "LocalizedContent": {
         "required": [
           "root",
@@ -1222,6 +1389,27 @@
               "integer"
             ],
             "format": "int32"
+          }
+        }
+      },
+      "PropertyGroup": {
+        "required": [
+          "key",
+          "label"
+        ],
+        "type": "object",
+        "properties": {
+          "key": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "description": {
+            "type": [
+              "null",
+              "string"
+            ]
           }
         }
       },

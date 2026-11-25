@@ -30,17 +30,27 @@ public static class StarterFields
 
     private static IReadOnlyList<ChildRule> AnyBlock => [.. Blocks.Select(b => new ChildRule(b))];
 
+    /// <summary>
+    /// A post's value groups: the story itself, and what the SEO section looks after (routed to it apart). Values without
+    /// a group are in the first, <c>main</c>.
+    /// </summary>
+    private static IReadOnlyList<PropertyGroup> PostGroups { get; } =
+    [
+        new("main", "Story", "The headline, the main image, who wrote it and when."),
+        new("seo", "Search and sharing", "The summary and keywords search engines and link previews show.")
+    ];
+
     private static IReadOnlyList<FieldProperty> PostValues(params FieldProperty[] extra) =>
     [
         P("headline", required: true),
         P("description", "description", "Summary", required: true,
-          help: "One or two sentences; search results and link previews show it.", maxLength: 300),
+          help: "One or two sentences; search results and link previews show it.", maxLength: 300) with { Group = "seo" },
         P("image", "image", "Main image", required: true, help: "Shown in previews and search results; at least 1200 pixels wide."),
         P("author", required: true),
         P("datePublished", required: true),
         P("dateModified"),
         P("section", "articleSection", "Section"),
-        P("keywords"),
+        P("keywords") with { Group = "seo" },
         P("about"),
         .. extra
     ];
@@ -107,16 +117,16 @@ public static class StarterFields
 
         new("post.article", new FieldDraft("Article", "Article", true,
             PostValues(), [StylePresets.Layout, StylePresets.Tone], AnyBlock,
-            "A general article, made of blocks.")),
+            "A general article, made of blocks.", Groups: PostGroups)),
 
         new("post.news", new FieldDraft("News", "NewsArticle", true,
             PostValues(P("dateline"), P("isAccessibleForFree", "isAccessibleForFree", "Free to read")),
             [StylePresets.Layout, StylePresets.Tone], AnyBlock,
-            "A news story, with its dateline.")),
+            "A news story, with its dateline.", Groups: PostGroups)),
 
         new("post.blog", new FieldDraft("Blog post", "BlogPosting", true,
             PostValues(), [StylePresets.Layout, StylePresets.Tone], AnyBlock,
-            "A blog post, made of blocks.")),
+            "A blog post, made of blocks.", Groups: PostGroups)),
     ];
 
     /// <summary>A starter field by key, or null.</summary>

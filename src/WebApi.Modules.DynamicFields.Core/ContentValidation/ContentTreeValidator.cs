@@ -38,7 +38,8 @@ public static class ContentTreeValidator
         ArgumentNullException.ThrowIfNull(root);
         var issues = new List<ContentIssue>();
         var nodes = 0;
-        Node(root, parent: null, path: "", depth: 1, resolve, issues, ref nodes);
+        var ids = new Dictionary<string, string>(StringComparer.Ordinal);
+        Node(root, parent: null, path: "", depth: 1, resolve, issues, ids, ref nodes);
         return issues;
     }
 
@@ -56,7 +57,7 @@ public static class ContentTreeValidator
     }
 
     private static void Node(ContentNode node, FieldSnapshot? parent, string path, int depth,
-        Func<string, int, FieldSnapshot?> resolve, List<ContentIssue> issues, ref int nodes)
+        Func<string, int, FieldSnapshot?> resolve, List<ContentIssue> issues, Dictionary<string, string> ids, ref int nodes)
     {
         if (++nodes > MaxNodes)
         {
@@ -68,6 +69,8 @@ public static class ContentTreeValidator
             issues.Add(new(path, $"Content nests at most {MaxDepth} levels."));
             return;
         }
+
+        NodeIdOf(node, path, ids, issues);
 
         var field = resolve(node.Field ?? "", node.FieldVersion);
         if (field is null)
@@ -101,8 +104,25 @@ public static class ContentTreeValidator
         for (var i = 0; i < children.Count; i++)
         {
             if (children[i] is null) { issues.Add(new($"{path}/children/{i}", "A child node is missing.")); continue; }
-            Node(children[i], field, $"{path}/children/{i}", depth + 1, resolve, issues, ref nodes);
+            Node(children[i], field, $"{path}/children/{i}", depth + 1, resolve, issues, ids, ref nodes);
         }
+    }
+
+    /// <summary>
+    /// A node id, when there is one: 1 to <see cref="MaxIdLength"/> characters, not the overlay key of the root, and used
+    /// once in the tree. Translation and design overlays key on it, so two nodes with one id would share them.
+    /// </summary>
+    private static void NodeIdOf(ContentNode node, string path, Dictionary<string, string> ids, List<ContentIssue> issues)
+    {
+        if (node.NodeId is null) return;
+        var at = $"{path}/nodeId";
+        var id = node.NodeId;
+        if (id.Trim().Length == 0 || id.Length > MaxIdLength || id != id.Trim())
+            issues.Add(new(at, $"A node id is 1 to {MaxIdLength} characters, without spaces around it."));
+        else if (id == Translation.ContentTranslator.RootId)
+            issues.Add(new(at, $"'{id}' is the root's key in overlays, not a node id."));
+        else if (!ids.TryAdd(id, path))
+            issues.Add(new(at, $"Node id '{id}' is used twice (also at {(ids[id].Length == 0 ? "the root" : $"'{ids[id]}'")})."));
     }
 
     private static void Content(FieldSnapshot field, JsonElement content, string path, List<ContentIssue> issues)

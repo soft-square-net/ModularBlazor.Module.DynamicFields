@@ -63,6 +63,8 @@ public enum PropertyKind
 /// text that is not language, such as a code or a slug. <see cref="Lookup"/>: what a Lookup property picks from (that
 /// kind only). <see cref="Accept"/>: the files an Asset property takes (that kind only; null: any file), each a content
 /// type (<c>image/png</c>), a family (<c>image/*</c>) or an extension (<c>.pdf</c>), as the file picker's accept list.
+/// <see cref="Group"/>: the key of the <see cref="PropertyGroup"/> the value belongs to (a root field's only; null when the
+/// field has no groups).
 /// </summary>
 public sealed record FieldProperty(
     string Key,
@@ -79,7 +81,16 @@ public sealed record FieldProperty(
     IReadOnlyList<string>? Options = null,
     bool? Translatable = null,
     LookupBinding? Lookup = null,
-    IReadOnlyList<string>? Accept = null);
+    IReadOnlyList<string>? Accept = null,
+    string? Group = null);
+
+/// <summary>
+/// A group of a root field's values, such as <c>main</c> (headline, body, images) and <c>seo</c> (summary, keywords), so
+/// the values of one group can be edited, reviewed and routed apart: the SEO section gets the <c>seo</c> group. The first
+/// group is the default: a value with no group belongs to it. Groups only sort values; content stores every value flat,
+/// the same as without groups.
+/// </summary>
+public sealed record PropertyGroup(string Key, string Label, string? Description = null);
 
 /// <summary>
 /// One style value of a field: a choice from <see cref="Values"/> (theme tokens such as "wide", "md", "start"), never
@@ -106,6 +117,7 @@ public sealed record ChildRule(string FieldKey, int Min = 0, int? Max = null);
 /// Another module's dialog id that edits this field's content instead of the generic editor, e.g.
 /// <c>Module.Media/edit-image</c>. It gets and returns <c>{ content, style }</c>.
 /// </param>
+/// <param name="Groups">A root field's value groups (<c>main</c>, <c>seo</c>), in order; null: none.</param>
 public sealed record FieldDraft(
     string Title,
     string SchemaType,
@@ -114,7 +126,8 @@ public sealed record FieldDraft(
     IReadOnlyList<StyleProperty> Style,
     IReadOnlyList<ChildRule> Children,
     string? Description = null,
-    string? EditorDialog = null);
+    string? EditorDialog = null,
+    IReadOnlyList<PropertyGroup>? Groups = null);
 
 /// <summary>A child rule as published: the child field pinned to the version that was current then.</summary>
 public sealed record PinnedChild(string FieldKey, int Version, int Min, int? Max);
@@ -133,4 +146,11 @@ public sealed record FieldSnapshot(
     IReadOnlyList<FieldProperty> Properties,
     IReadOnlyList<StyleProperty> Style,
     IReadOnlyList<PinnedChild> Children,
-    string? EditorDialog);
+    string? EditorDialog,
+    IReadOnlyList<PropertyGroup>? Groups = null)
+{
+    /// <summary>The values of one group, in the field's order (the first group also has the values with no group).</summary>
+    public IReadOnlyList<FieldProperty> PropertiesIn(string group) =>
+        Groups is not { Count: > 0 } groups ? []
+        : [.. Properties.Where(p => (p.Group ?? groups[0].Key) == group)];
+}

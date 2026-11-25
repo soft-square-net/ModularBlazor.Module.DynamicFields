@@ -99,3 +99,6 @@
 .df-file-thumb { width: 48px; height: 48px; object-fit: cover; border-radius: 4px; flex: none; }
 .df-file-icon { font-size: 1.25rem; flex: none; }
 .df-file-name { font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.df-group { margin: 16px 0 4px; padding-top: 8px; border-top: 1px solid var(--mud-palette-lines-default, rgba(127,127,127,.3)); }
+.df-group:first-of-type { border-top: 0; padding-top: 0; }
+.df-group-help { margin: 0 0 8px; }

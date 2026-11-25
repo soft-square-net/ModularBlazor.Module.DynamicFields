@@ -143,6 +143,45 @@
             <h2 class="mud-typography mud-typography-h6">@L["2. Values"] <span class="mn-muted df-count">@_s.Properties.Count</span></h2>
             <p class="mud-typography mud-typography-body2 mn-muted">@L["What an author fills in. Each value is published as a schema.org property, which is what search engines and AI read."]</p>
 
+            @if (_s.CanBeRoot)
+            {
+              <div class="df-groups">
+                <strong class="mud-typography mud-typography-subtitle2">@L["Value groups"]</strong>
+                <p class="mud-typography mud-typography-body2 mn-muted">@L["Optional: sort a post's values into groups, such as the story and search and sharing, so each can be edited and routed apart (the SEO section gets its group). A value with no group is in the first."]</p>
+                @foreach (var group in _s.Groups)
+                {
+                  var g = group;
+                  var gid = $"fb-g-{_s.Groups.IndexOf(g)}";
+                  <div class="df-grid df-group-row" @key="g">
+                    <div class="mud-input-control">
+                      <label class="mud-input-label" for="@($"{gid}-label")">@L["Label *"]</label>
+                      <div class="mud-input-wrapper"><input id="@($"{gid}-label")" class="mud-input-slot" @bind="g.Label" @bind:event="oninput" maxlength="120" /></div>
+                    </div>
+                    <div class="mud-input-control">
+                      <label class="mud-input-label" for="@($"{gid}-key")">@L["Key *"]</label>
+                      <div class="mud-input-wrapper"><input id="@($"{gid}-key")" class="mud-input-slot" @bind="g.Key" @bind:event="oninput" maxlength="64" /></div>
+                    </div>
+                    <div class="mud-input-control">
+                      <label class="mud-input-label" for="@($"{gid}-help")">@L["Description"]</label>
+                      <div class="mud-input-wrapper"><input id="@($"{gid}-help")" class="mud-input-slot" @bind="g.Description" @bind:event="oninput" maxlength="500" /></div>
+                    </div>
+                    <span class="df-row-tools">
+                      <button type="button" class="mud-button-root mud-button-text mud-button-small" aria-label="@L["Move up"]" title="@L["Move up"]" @onclick="() => FieldBuilderState.Move(_s.Groups, g, -1)">↑</button>
+                      <button type="button" class="mud-button-root mud-button-text mud-button-small" aria-label="@L["Move down"]" title="@L["Move down"]" @onclick="() => FieldBuilderState.Move(_s.Groups, g, 1)">↓</button>
+                      <button type="button" class="mud-button-root mud-button-text mud-button-small" aria-label="@L["Remove"]" title="@L["Remove"]" @onclick="() => _s.Groups.Remove(g)">✕</button>
+                    </span>
+                  </div>
+                }
+                <div class="mn-row-actions">
+                  @if (_s.Groups.Count == 0)
+                  {
+                    <button type="button" class="mud-button-root mud-button-outlined mud-button-primary mud-button-small" @onclick="AddStoryAndSeo">@L["Add Story and SEO groups"]</button>
+                  }
+                  <button type="button" class="mud-button-root mud-button-text mud-button-primary mud-button-small" @onclick="AddGroup">@L["Add a group"]</button>
+                </div>
+              </div>
+            }
+
             @foreach (var row in _s.Properties)
             {
               var r = row;
@@ -153,6 +192,7 @@
                     <strong>@(r.Label.Length > 0 ? r.Label : "(no label)")</strong>
                     <span class="mn-chip">@KindLabel(r.Kind)@(r.Multiple ? " · list" : "")</span>
                     @if (r.Required) { <span class="mn-chip df-required">@L["required"]</span> }
+                    @if (_s.GroupOf(r) is { } inGroup) { <span class="mn-chip">@GroupLabel(inGroup)</span> }
                     @if (r.SchemaProperty is { Length: > 0 } sp) { <span class="df-schema">schema.org: @sp</span> }
                     else { <span class="df-schema df-warn-text">@L["no schema.org property"]</span> }
                   </button>
@@ -204,6 +244,20 @@
                         </div>
                       </div>
                     </div>
+                    @if (_s.Grouped)
+                    {
+                      <div class="mud-input-control">
+                        <label class="mud-input-label" for="@($"{id}-group")">@L["Group"]</label>
+                        <div class="mud-input-wrapper mud-input-wrapper--select">
+                          <select id="@($"{id}-group")" class="mud-input-slot" value="@_s.GroupOf(r)" @onchange="e => r.Group = e.Value?.ToString()">
+                            @foreach (var g in _s.Groups)
+                            {
+                              <option value="@g.Key.Trim()">@(g.Label.Trim().Length > 0 ? g.Label : g.Key)</option>
+                            }
+                          </select>
+                        </div>
+                      </div>
+                    }
                     <div class="df-checks">
                       <label class="mn-check"><input type="checkbox" @bind="r.Required" /> @L["Required"]</label>
                       <label class="mn-check"><input type="checkbox" @bind="r.Multiple" /> @L["A list (several values)"]</label>
@@ -475,8 +529,8 @@
             <button type="button" class="mud-button-root mud-button-outlined mud-button-primary mud-button-small" @onclick="CheckPreview">@L["Check required values"]</button>
           </div>
           <h3 class="mud-typography mud-typography-subtitle2">@L["As schema.org data"]</h3>
-          <p class="mud-typography mud-typography-body2 mn-muted">@L["What search engines and AI read from it (JSON-LD); ‹…› marks a value not filled in."]</p>
-          <pre class="mn-result df-jsonld">@JsonLd()</pre>
+          <p class="mud-typography mud-typography-body2 mn-muted">@L["What search engines and AI read from it (JSON-LD), as the server builds it; ‹…› marks a value not filled in."]</p>
+          <pre class="mn-result df-jsonld">@(_jsonLd ?? L["Building…"])</pre>
         </section>
       </aside>
     </div>
@@ -630,6 +684,24 @@
     Open = true
   });
 
+  /// <summary>The usual split of a post's values: the story, and what the SEO section looks after.</summary>
+  private void AddStoryAndSeo()
+  {
+    _s!.Groups.Add(new FieldBuilderState.GroupRow { Key = "main", Label = L["Story"], Description = L["The headline, the main image, who wrote it and when."] });
+    _s.Groups.Add(new FieldBuilderState.GroupRow { Key = "seo", Label = L["Search and sharing"], Description = L["The summary and keywords search engines and link previews show."] });
+    foreach (var row in _s.Properties.Where(r => r.SchemaProperty is "description" or "keywords" or "alternativeHeadline"))
+      row.Group = "seo";
+  }
+
+  private void AddGroup() => _s!.Groups.Add(new FieldBuilderState.GroupRow
+  {
+    Key = FieldBuilderState.FreeKey("group", _s.Groups.Select(g => g.Key)),
+    Label = L["New group"]
+  });
+
+  private string GroupLabel(string key) =>
+    _s!.Groups.FirstOrDefault(g => g.Key.Trim() == key) is { Label: { Length: > 0 } label } ? label : key;
+
   /// <summary>The accept lists offered as one click on an Asset value.</summary>
   private static readonly (string Label, string[] Accept)[] AcceptPresets =
   [
@@ -688,32 +760,50 @@
 
   private void CheckPreview() => _previewIssues = Preview.MissingRequired().ToDictionary(i => i.Path, i => i.Message);
 
-  /// <summary>The preview's values as schema.org JSON-LD, each under its schema.org property; ‹label› where empty.</summary>
-  private string JsonLd()
-  {
-    var state = Preview;
-    var content = state.Content();
-    var ld = new JsonObject { ["@context"] = "https://schema.org", ["@type"] = _s!.SchemaType };
-    foreach (var value in state.Values)
-    {
-      if (value.Property.SchemaProperty is not { Length: > 0 } name) continue;
-      var node = content.TryGetPropertyValue(value.Property.Key, out var v) && v is not null ? v.DeepClone() : JsonValue.Create($"‹{value.Property.Label}›");
-      ld[name] = ld[name] switch
-      {
-        null => node,
-        JsonArray list => Append(list, node),
-        { } single => Append(new JsonArray(single.DeepClone()), node)
-      };
-    }
-    if (_s.Children.Count > 0)
-      ld["hasPart"] = new JsonArray(JsonValue.Create($"‹the contained {string.Join(", ", _s.Children.Select(c => c.FieldKey))}›"));
-    return ld.ToJsonString(Json);
-  }
+  /// <summary>
+  /// The preview's values as schema.org JSON-LD, built by the server (POST /content/jsonld) from the draft as it is now,
+  /// with ‹label› for what is empty. Asked again a moment after the draft or the values stop changing.
+  /// </summary>
+  private string? _jsonLd;
+  private string? _jsonLdSignature;
+  private CancellationTokenSource? _jsonLdWait;
 
-  private static JsonArray Append(JsonArray list, JsonNode node)
+  protected override async Task OnAfterRenderAsync(bool firstRender)
   {
-    list.Add(node);
-    return list;
+    if (_s is null || _catalog is null) return;
+    var state = Preview;
+    var draft = _s.ToDraft();
+    var content = state.Content();
+    var signature = JsonSerializer.Serialize(draft, Json) + "|" + content.ToJsonString();
+    if (signature == _jsonLdSignature) return;
+    _jsonLdSignature = signature;
+
+    _jsonLdWait?.Cancel();
+    var wait = _jsonLdWait = new CancellationTokenSource();
+    try
+    {
+      await Task.Delay(_jsonLd is null ? 0 : 400, wait.Token);
+      var report = await Api.BuildJsonLdAsync(new JsonLdRequest
+      {
+        Root = new ContentNode
+        {
+          Field = _s.Key.Trim().Length > 0 ? _s.Key.Trim() : "new-field",
+          FieldVersion = 0,
+          Content = JsonSerializer.SerializeToElement(content),
+          Style = JsonSerializer.SerializeToElement(state.Style())
+        },
+        Draft = draft,
+        Placeholders = true
+      }, wait.Token);
+      if (wait.IsCancellationRequested) return;
+      _jsonLd = JsonSerializer.Serialize(report.JsonLd, Json);
+    }
+    catch (OperationCanceledException) { return; }
+    catch (Exception ex)
+    {
+      _jsonLd = L["The schema.org data could not be built: {0}", Describe(ex)];
+    }
+    StateHasChanged();
   }
 
   // ------------------------------------------------------------------ JSON tab
@@ -794,13 +884,15 @@
   {
     if (_detail is not { } detail) return;
     JsonElement? content = null, style = null;
+    string? nodeId = null;
     if (_tried is not null)
     {
       using var last = JsonDocument.Parse(_tried);
       content = last.RootElement.GetProperty("content").Clone();
       style = last.RootElement.GetProperty("style").Clone();
+      nodeId = last.RootElement.TryGetProperty("nodeId", out var id) ? id.GetString() : null;
     }
-    var result = await ModuleDialogs.ShowAsync("Module.DynamicFields/edit-content", new { field = detail.Key, content, style });
+    var result = await ModuleDialogs.ShowAsync("Module.DynamicFields/edit-content", new { field = detail.Key, content, style, nodeId });
     if (result.Canceled) await MudTail.ToastAsync(L["The editor was canceled."], "info");
     else _tried = JsonSerializer.Serialize(result.Data, Json);
   }

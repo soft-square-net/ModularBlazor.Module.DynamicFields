@@ -19,6 +19,12 @@ public sealed class FieldBuilderState
     public List<StyleRow> Style { get; } = [];
     public List<ChildRow> Children { get; } = [];
 
+    /// <summary>A root field's value groups (main, seo), in order; the first holds the values with no group.</summary>
+    public List<GroupRow> Groups { get; } = [];
+
+    /// <summary>Whether the values are grouped: a root field with at least one group.</summary>
+    public bool Grouped => CanBeRoot && Groups.Count > 0;
+
     public static FieldBuilderState From(string key, FieldDraft draft)
     {
         var state = new FieldBuilderState
@@ -33,20 +39,33 @@ public sealed class FieldBuilderState
         state.Properties.AddRange(draft.Properties.Select(PropertyRow.From));
         state.Style.AddRange(draft.Style.Select(StyleRow.From));
         state.Children.AddRange(draft.Children.Select(c => new ChildRow { FieldKey = c.FieldKey, Min = c.Min ?? 0, Max = c.Max }));
+        state.Groups.AddRange((draft.Groups ?? []).Select(g => new GroupRow { Key = g.Key, Label = g.Label, Description = g.Description }));
         return state;
     }
 
     public FieldDraft ToDraft() => new()
     {
+        Groups = Grouped ? [.. Groups.Select(g => g.ToModel())] : null,
         Title = Title.Trim(),
         SchemaType = SchemaType,
         CanBeRoot = CanBeRoot,
         Description = Blank(Description),
         EditorDialog = Blank(EditorDialog),
-        Properties = [.. Properties.Select(p => p.ToModel())],
+        Properties = [.. Properties.Select(p => p.ToModel(GroupOf(p)))],
         Style = [.. Style.Select(s => s.ToModel())],
         Children = [.. Children.Select(c => new ChildRule { FieldKey = c.FieldKey, Min = c.Min, Max = c.Max })]
     };
+
+    /// <summary>
+    /// The group a value is saved in: its own while the field has it, else the first; none when the values are not
+    /// grouped.
+    /// </summary>
+    public string? GroupOf(PropertyRow row)
+    {
+        if (!Grouped) return null;
+        var keys = Groups.Select(g => g.Key.Trim()).ToList();
+        return row.Group is { } own && keys.Contains(own) ? own : keys[0];
+    }
 
     /// <summary>The draft as an unpublished version (0), for the preview.</summary>
     public FieldSnapshot ToSnapshot()
@@ -63,7 +82,8 @@ public sealed class FieldBuilderState
             Properties = draft.Properties,
             Style = [.. draft.Style.Where(s => s.Values.Count > 0)],
             Children = [.. draft.Children.Select(c => new PinnedChild { FieldKey = c.FieldKey, Version = 0, Min = c.Min ?? 0, Max = c.Max })],
-            EditorDialog = draft.EditorDialog
+            EditorDialog = draft.EditorDialog,
+            Groups = draft.Groups
         };
     }
 
@@ -116,6 +136,9 @@ public sealed class FieldBuilderState
         /// </summary>
         public string AcceptText { get; set; } = "";
 
+        /// <summary>The value group's key (a root field with groups); null: the first group.</summary>
+        public string? Group { get; set; }
+
         /// <summary>Whether the row's details are shown in the builder.</summary>
         public bool Open { get; set; }
 
@@ -139,7 +162,8 @@ public sealed class FieldBuilderState
             Maximum = p.Maximum,
             OptionsText = string.Join("\n", p.Options ?? []),
             Lookup = LookupRow.From(p.Lookup),
-            AcceptText = string.Join(", ", p.Accept ?? [])
+            AcceptText = string.Join(", ", p.Accept ?? []),
+            Group = p.Group
         };
 
         /// <summary>
@@ -162,8 +186,9 @@ public sealed class FieldBuilderState
         };
 
         /// <summary>The API's property; limits that do not fit the kind are dropped, not sent.</summary>
-        public FieldProperty ToModel() => new()
+        public FieldProperty ToModel(string? group = null) => new()
         {
+            Group = group,
             Key = Key.Trim(),
             Label = Label.Trim(),
             Kind = Kind,
@@ -304,6 +329,16 @@ public sealed class FieldBuilderState
                 Default = Default is { Length: > 0 } d && values.Contains(d) ? d : null
             };
         }
+    }
+
+    /// <summary>A group of a root field's values: main, seo, ...</summary>
+    public sealed class GroupRow
+    {
+        public string Key { get; set; } = "";
+        public string Label { get; set; } = "";
+        public string? Description { get; set; }
+
+        public PropertyGroup ToModel() => new() { Key = Key.Trim(), Label = Label.Trim(), Description = Blank(Description) };
     }
 
     /// <summary>A field this one may contain, and how many of it (no maximum: any number).</summary>

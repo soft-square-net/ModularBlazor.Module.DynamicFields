@@ -31,7 +31,17 @@
   <p class="mud-typography mud-typography-body2 mn-muted">@L["This field has no values or style yet."]</p>
 }
 
-@foreach (var value in State.Values)
+@foreach (var section in Sections)
+{
+  @if (section.Group is { } group)
+  {
+    <h3 class="mud-typography mud-typography-subtitle2 df-group">@group.Label</h3>
+    @if (group.Description is { Length: > 0 } groupHelp)
+    {
+      <p class="mud-typography mud-typography-body2 mn-muted df-group-help">@groupHelp</p>
+    }
+  }
+@foreach (var value in section.Values)
 {
   var p = value.Property;
   var id = $"df-{_uid}-{p.Key}";
@@ -151,8 +161,9 @@
     }
   </div>
 }
+}
 
-@if (State.Styles.Count > 0)
+@if (State.Styles.Count > 0 && ShowStyle)
 {
   <details class="df-style" open="@StyleOpen">
     <summary class="mud-typography mud-typography-subtitle2">@L["Style"]</summary>
@@ -222,6 +233,34 @@
 
   /// <summary>Whether the style section starts open.</summary>
   [Parameter] public bool StyleOpen { get; set; }
+
+  /// <summary>
+  /// Only this value group of a root field (e.g. "seo"), without the style: what one section (SEO) edits. The other
+  /// values stay in the state as they were. Null: every value, under its group's heading when the field has groups.
+  /// </summary>
+  [Parameter] public string? Group { get; set; }
+
+  private bool ShowStyle => Group is null;
+
+  /// <summary>The values to show, by group (one section without a heading when the field has no groups).</summary>
+  private IEnumerable<(PropertyGroup? Group, IReadOnlyList<ContentEditorState.ValueState> Values)> Sections
+  {
+    get
+    {
+      var groups = State.Field.Groups;
+      if (groups is not { Count: > 0 })
+      {
+        yield return (null, State.Values);
+        yield break;
+      }
+      foreach (var g in groups)
+      {
+        if (Group is not null && g.Key != Group) continue;
+        var values = State.Values.Where(v => (v.Property.Group ?? groups[0].Key) == g.Key).ToList();
+        if (values.Count > 0) yield return (Group is null ? g : null, values);
+      }
+    }
+  }
 
   /// <summary>The ids a picker dialog answers with, and (Storage's file browser) the files they are.</summary>
   private sealed record Picked(IReadOnlyList<string>? Ids, IReadOnlyList<PickedFile>? Files);
