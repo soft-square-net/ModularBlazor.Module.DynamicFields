@@ -53,14 +53,14 @@
             <label class="mn-check">
               <input type="checkbox" disabled="@s.Installed" checked="@(s.Installed || _picked.Contains(s.Key))"
                      @onchange="e => Pick(s.Key, e.Value is true)" />
-              <strong>@s.Title</strong>
+              <strong>@L[s.Title]</strong>
             </label>
             <code>@s.Key</code>
             <span class="mn-chip">@s.SchemaType</span>
             @if (s.CanBeRoot) { <span class="mn-chip">@L["post"]</span> }
             @if (s.Installed) { <span class="mn-chip df-ok">@L["installed"]</span> }
             <span class="mn-muted df-starter-text">
-              @s.Description
+              @if (s.Description is { } description) { @L[description] }
               @if (s.Children.Count > 0) { <text> Contains: @string.Join(", ", s.Children).</text> }
             </span>
           </li>

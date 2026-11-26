@@ -105,7 +105,8 @@ public sealed partial class FieldBuilderState
 
     /// <summary>
     /// The URL prefix a key suggests, as the server's FieldRules.SuggestUrlPrefix: post.article → articles, post.news →
-    /// news, post.review → reviews, post.blog → blog; else the key without "post." and with '.' as '-'.
+    /// news, post.review → reviews, post.blog → blog, post.video → videos, post.photo-story → photo-stories, post.other →
+    /// posts; else the key without "post." and with '.' as '-'.
     /// </summary>
     public static string SuggestUrlPrefix(string key)
     {
@@ -116,6 +117,9 @@ public sealed partial class FieldBuilderState
             "post.news" => "news",
             "post.review" => "reviews",
             "post.blog" => "blog",
+            "post.video" => "videos",
+            "post.photo-story" => "photo-stories",
+            "post.other" => "posts",
             "" => "news",
             _ => (key.StartsWith("post.", StringComparison.Ordinal) && key.Length > 5 ? key[5..] : key).Replace('.', '-')
         };

@@ -91,7 +91,7 @@ public class PropertyGroupTests
     [Fact]
     public void TheStarterPostsPutTheSummaryAndKeywordsInTheSeoGroup()
     {
-        foreach (var key in new[] { "post.article", "post.news", "post.blog" })
+        foreach (var key in new[] { "post.article", "post.news", "post.blog", "post.video", "post.reportage", "post.photo-story", "post.other" })
         {
             var draft = FieldRules.Check(key, StarterFields.Find(key)!.Draft);
             draft.Groups!.Select(g => g.Key).ShouldBe(["main", "seo"]);

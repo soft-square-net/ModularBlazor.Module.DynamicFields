@@ -7,9 +7,10 @@ public sealed record StarterField(string Key, FieldDraft Draft);
 
 /// <summary>
 /// The starter library: ready-made blocks (heading, text, paragraph, quote, image, video, audio, gallery) and posts
-/// (article, news, review, blog post) built on the schema.org catalog, with the values search engines ask for marked
-/// required. Each post has its static URL (<see cref="FieldDraft.UrlPrefix"/>): <c>articles</c>, <c>news</c>,
-/// <c>reviews</c>, <c>blog</c>. A tenant installs them on demand; they then are ordinary fields it can change and publish
+/// (article, news, review, blog post, video, reportage, photo story, other) built on the schema.org catalog, with the
+/// values search engines ask for marked required. Each post has its static URL (<see cref="FieldDraft.UrlPrefix"/>):
+/// <c>articles</c>, <c>news</c>, <c>reviews</c>, <c>blog</c>, <c>videos</c>, <c>reportage</c>, <c>photo-stories</c>,
+/// <c>posts</c>. A tenant installs them on demand; they then are ordinary fields it can change and publish
 /// again. Listed children first, so installing in this order can publish each field right away.
 /// </summary>
 public static class StarterFields
@@ -54,6 +55,29 @@ public static class StarterFields
         P("keywords") with { Group = "seo" },
         P("about"),
         .. extra
+    ];
+
+    /// <summary>
+    /// A video post's values. They keep the keys every post has, published as what a VideoObject calls them: the headline
+    /// is its name, the main image its thumbnail, the publishing date its upload date (Google requires all three) and the
+    /// section its genre. The video is a file or a player address; neither is required, as authors have one or the other.
+    /// </summary>
+    private static IReadOnlyList<FieldProperty> VideoValues() =>
+    [
+        .. PostValues().Select(p => p.Key switch
+        {
+            "headline" => p with { SchemaProperty = "name" },
+            "image" => p with { SchemaProperty = "thumbnailUrl", Label = "Thumbnail",
+                HelpText = "Shown in previews and search results; Google requires it for videos." },
+            "datePublished" => p with { SchemaProperty = "uploadDate",
+                HelpText = "When the video was first published; Google requires it." },
+            "section" => p with { SchemaProperty = "genre" },
+            _ => p
+        }),
+        P("video", "contentUrl", "Video", help: "The video file.") with { Accept = AcceptFor("VideoObject", "contentUrl") },
+        P("embedUrl"),
+        P("duration"),
+        P("transcript")
     ];
 
     public static IReadOnlyList<StarterField> All { get; } =
@@ -133,6 +157,25 @@ public static class StarterFields
         new("post.blog", new FieldDraft("Blog post", "BlogPosting", true,
             PostValues(), [StylePresets.Layout, StylePresets.Tone], AnyBlock,
             "A blog post, made of blocks.", Groups: PostGroups, UrlPrefix: "blog")),
+
+        new("post.video", new FieldDraft("Video", "VideoObject", true,
+            VideoValues(), [StylePresets.Layout, StylePresets.Tone], AnyBlock,
+            "A video as a post of its own, with what search engines need to show it.", Groups: PostGroups,
+            UrlPrefix: "videos")),
+
+        new("post.reportage", new FieldDraft("Reportage", "ReportageNewsArticle", true,
+            PostValues(P("dateline"), P("isAccessibleForFree", "isAccessibleForFree", "Free to read")),
+            [StylePresets.Layout, StylePresets.Tone], AnyBlock,
+            "Factual reporting, from the scene or from sources.", Groups: PostGroups, UrlPrefix: "reportage")),
+
+        new("post.photo-story", new FieldDraft("Photo story", "Article", true,
+            PostValues(), [StylePresets.Layout, StylePresets.Tone], AnyBlock,
+            "A story told mainly in pictures, with image galleries among its blocks.", Groups: PostGroups,
+            UrlPrefix: "photo-stories")),
+
+        new("post.other", new FieldDraft("Other", "Article", true,
+            PostValues(), [StylePresets.Layout, StylePresets.Tone], AnyBlock,
+            "A post of no other kind, made of blocks.", Groups: PostGroups, UrlPrefix: "posts")),
     ];
 
     /// <summary>A starter field by key, or null.</summary>

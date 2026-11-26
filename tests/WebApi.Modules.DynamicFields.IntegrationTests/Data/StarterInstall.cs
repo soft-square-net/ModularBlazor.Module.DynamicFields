@@ -46,5 +46,10 @@ public sealed class StarterInstall : IDisposable
         news.LatestVersion.ShouldBe(1);
         news.GetVersion(1)!.Snapshot.Children.Count.ShouldBe(8);
         news.GetVersion(1)!.Snapshot.Properties.ShouldContain(p => p.SchemaProperty == "dateline");
+
+        var roots = await new EfRepository<FieldDefinition>(context).ListAsync(new PublishedRootFieldsSpec(), Ct);
+        roots.Select(f => f.Key).ShouldBe(StarterFields.All.Where(f => f.Draft.CanBeRoot).Select(f => f.Key), ignoreOrder: true);
+        roots.ShouldContain(f => f.Key == "post.photo-story" && f.PublishedUrlPrefix == "photo-stories");
+        roots.Select(f => f.PublishedUrlPrefix).ShouldBeUnique();
     }
 }
