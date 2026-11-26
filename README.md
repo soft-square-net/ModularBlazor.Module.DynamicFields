@@ -89,8 +89,14 @@ The **starter library** (`StarterFields`) is ready-made fields built on it, with
 marked required: the blocks `block.heading`, `block.text`, `block.paragraph`, `block.quote`, `block.image` (with
 required alternative text), `block.video`, `block.audio`, `block.gallery` (of images), and the posts `post.article`
 (URL prefix `articles`), `post.news` (`news`), `post.review` (`reviews`, a schema.org Review with what it reviews and its
-rating) and `post.blog` (`blog`), which may contain any block. The posts group their values: `main` (Story) and `seo` (Search
-and sharing: the summary and keywords). A tenant installs them on demand; installed fields are
+rating), `post.blog` (`blog`), `post.video` (`videos`), `post.reportage` (`reportage`, a schema.org ReportageNewsArticle
+with a dateline), `post.photo-story` (`photo-stories`, an Article whose pictures are in its gallery and image blocks) and
+`post.other` (`posts`, an Article), which may contain any block. The posts group their values: `main` (Story) and `seo`
+(Search and sharing: the summary and keywords). `post.video` is a schema.org VideoObject with the same value keys as the
+other posts, published under a video's names: `headline` as `name`, `image` as `thumbnailUrl` and `datePublished` as
+`uploadDate` (the three Google requires), and `section` as `genre`. It adds the video file (`video`, `video/*`),
+`embedUrl`, `duration` and `transcript`, all optional. The starter panel shows these titles and descriptions in the
+user's language (English or Arabic, `i18n/ar.json`); an installed field stores the English ones. A tenant installs them on demand; installed fields are
 ordinary fields it can change and publish again. Installing never overwrites a key the tenant has; a parent whose child
 exists unpublished is created as a draft, and so is a post whose URL prefix another published post field of the tenant
 has already (pick another prefix, then publish it).
@@ -111,7 +117,8 @@ Publishing a field that is no longer a root drops its prefix. A root draft saved
 from before prefixes) keeps the published prefix. The migration `AddUrlPrefix` gave every published root field the prefix
 its key suggests (`FieldRules.SuggestUrlPrefix`: `post.article` → `articles`, `post.news` → `news`, `post.review` →
 `reviews`, `post.blog` → `blog`, any other key without `post.` and with `.` as `-`), with `-{id}` added where two fields of
-a tenant would share one.
+a tenant would share one. The suggestion has since learned `post.video` → `videos`, `post.photo-story` → `photo-stories`
+and `post.other` → `posts` (`post.reportage` → `reportage` follows the general rule); the migration did not use these.
 
 A posts module resolves a post's kind (the root field key) to its URL with `GET /catalog/root-post-fields`: one entry per
 published root field, with the newest version's title, description and schema type. `GET /fields` also returns

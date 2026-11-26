@@ -116,6 +116,46 @@ public class StarterFieldsTests
     }
 
     [Fact]
+    public void EveryStarterPostSuggestsItsOwnUniquePrefix()
+    {
+        var posts = StarterFields.All.Where(f => f.Draft.CanBeRoot).ToList();
+
+        posts.Select(f => f.Draft.UrlPrefix).ShouldBeUnique();
+        foreach (var post in posts) FieldRules.SuggestUrlPrefix(post.Key).ShouldBe(post.Draft.UrlPrefix, post.Key);
+    }
+
+    [Theory]
+    [InlineData("post.video", "VideoObject")]
+    [InlineData("post.reportage", "ReportageNewsArticle")]
+    [InlineData("post.photo-story", "Article")]
+    [InlineData("post.other", "Article")]
+    public void TheLaterPostKindsFollowTheArticlesRules(string key, string schemaType)
+    {
+        var article = StarterFields.Find("post.article")!.Draft;
+        var post = StarterFields.Find(key)!.Draft;
+
+        post.CanBeRoot.ShouldBeTrue();
+        post.SchemaType.ShouldBe(schemaType);
+        post.Children.ShouldBe(article.Children);
+        post.Style.ShouldBe(article.Style);
+        post.Groups.ShouldBe(article.Groups);
+        post.Properties.Where(p => p.Required).Select(p => p.Key)
+            .ShouldBe(["headline", "description", "image", "author", "datePublished"]);
+        var has = SchemaOrgCatalog.PropertiesOf(schemaType).Select(p => p.Name).ToHashSet();
+        foreach (var value in post.Properties) has.ShouldContain(value.SchemaProperty!, $"{key}.{value.Key}");
+    }
+
+    [Fact]
+    public void AVideoPostAsksForWhatVideoSearchNeeds()
+    {
+        var video = StarterFields.Find("post.video")!.Draft;
+
+        video.Properties.Where(p => p.Required).Select(p => p.SchemaProperty)
+            .ShouldBe(["name", "description", "thumbnailUrl", "author", "uploadDate"]);
+        video.Properties.Single(p => p.Key == "video").Accept.ShouldBe(["video/*"]);
+    }
+
+    [Fact]
     public void AnImageNeedsItsAlternativeText()
     {
         var alt = StarterFields.Find("block.image")!.Draft.Properties.Single(p => p.Key == "alt");

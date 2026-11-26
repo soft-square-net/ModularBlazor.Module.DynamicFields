@@ -78,7 +78,9 @@ public class CatalogHandlers
 
         _added.Where(f => f.CanBeRoot).ToDictionary(f => f.Key, f => f.PublishedUrlPrefix).ShouldBe(new Dictionary<string, string?>
         {
-            ["post.article"] = "articles", ["post.news"] = "news", ["post.review"] = "reviews", ["post.blog"] = "blog"
+            ["post.article"] = "articles", ["post.news"] = "news", ["post.review"] = "reviews", ["post.blog"] = "blog",
+            ["post.video"] = "videos", ["post.reportage"] = "reportage", ["post.photo-story"] = "photo-stories",
+            ["post.other"] = "posts"
         }, ignoreOrder: true);
         _added.Where(f => !f.CanBeRoot).ShouldAllBe(f => f.PublishedUrlPrefix == null);
     }

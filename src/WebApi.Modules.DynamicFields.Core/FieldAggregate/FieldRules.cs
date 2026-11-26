@@ -90,8 +90,11 @@ public static partial class FieldRules
 
     /// <summary>
     /// The URL prefix a root field's key suggests: <c>post.article</c> → <c>articles</c>, <c>post.news</c> → <c>news</c>,
-    /// <c>post.review</c> → <c>reviews</c>, <c>post.blog</c> → <c>blog</c>; any other key without its <c>post.</c> start and
-    /// with '.' as '-' (<c>post.photo.story</c> → <c>photo-story</c>). The data migration fills existing fields the same way.
+    /// <c>post.review</c> → <c>reviews</c>, <c>post.blog</c> → <c>blog</c>, <c>post.video</c> → <c>videos</c>,
+    /// <c>post.reportage</c> → <c>reportage</c>, <c>post.photo-story</c> → <c>photo-stories</c>, <c>post.other</c> →
+    /// <c>posts</c>; any other key without its <c>post.</c> start and with '.' as '-' (<c>post.photo.story</c> →
+    /// <c>photo-story</c>). The data migration <c>AddUrlPrefix</c> filled existing fields the same way, but knew only the
+    /// first four named keys.
     /// </summary>
     public static string SuggestUrlPrefix(string key)
     {
@@ -101,6 +104,9 @@ public static partial class FieldRules
             "post.news" => "news",
             "post.review" => "reviews",
             "post.blog" => "blog",
+            "post.video" => "videos",
+            "post.photo-story" => "photo-stories",
+            "post.other" => "posts",
             _ => null
         };
         if (known is not null) return known;
