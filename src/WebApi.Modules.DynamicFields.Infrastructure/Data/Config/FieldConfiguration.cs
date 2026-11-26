@@ -14,6 +14,8 @@ public sealed class FieldConfiguration : IEntityTypeConfiguration<FieldDefinitio
         field.HasIndex(nameof(FieldDefinition.TenantId), nameof(FieldDefinition.Key)).IsUnique();
         field.Property(f => f.Title).HasMaxLength(FieldRules.TitleMaxLength);
         field.Property(f => f.SchemaType).HasMaxLength(FieldRules.KeyMaxLength);
+        // Unique per tenant among published roots, checked when publishing (not an index: Oracle has no filtered one).
+        field.Property(f => f.PublishedUrlPrefix).HasMaxLength(FieldRules.UrlPrefixMaxLength);
         // Unbounded: a draft with many properties is larger than any engine's ordinary string column (Oracle: NCLOB).
         field.Property(f => f.DraftJson);
         field.Property(f => f.CreatedBy).HasMaxLength(DataSchemaConstants.UserIdLength);

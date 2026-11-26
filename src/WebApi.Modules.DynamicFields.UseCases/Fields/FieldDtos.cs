@@ -3,13 +3,30 @@ using soft.square.net.WebApi.Modules.DynamicFields.Core.FieldAggregate;
 
 namespace soft.square.net.WebApi.Modules.DynamicFields.UseCases.Fields;
 
-/// <summary>A field in a list. <see cref="Version"/> goes back with an edit, a publish or a delete.</summary>
+/// <summary>
+/// A field in a list. <see cref="Version"/> goes back with an edit, a publish or a delete. <see cref="UrlPrefix"/> is the
+/// published URL prefix of a root field (null: not a published root).
+/// </summary>
 public sealed record FieldSummaryDto(
     string Key, string Title, string SchemaType, bool CanBeRoot, int LatestVersion, bool HasDraftChanges,
-    DateTimeOffset UpdatedAt, int Version)
+    DateTimeOffset UpdatedAt, int Version, string? UrlPrefix = null)
 {
     public static FieldSummaryDto From(FieldDefinition f) =>
-        new(f.Key, f.Title, f.SchemaType, f.CanBeRoot, f.LatestVersion, f.HasDraftChanges, f.UpdatedAt, f.Version);
+        new(f.Key, f.Title, f.SchemaType, f.CanBeRoot, f.LatestVersion, f.HasDraftChanges, f.UpdatedAt, f.Version, f.PublishedUrlPrefix);
+}
+
+/// <summary>
+/// A published root post field: a post kind (<see cref="Key"/>, e.g. <c>post.news</c>) and its static URL
+/// (<see cref="UrlPrefix"/>, e.g. <c>news</c>: the public route prefix of posts of this kind). Title, description and
+/// schema type are the newest published version's (<see cref="Version"/>).
+/// </summary>
+public sealed record RootPostFieldDto(string Key, string Title, string? Description, string SchemaType, string UrlPrefix, int Version)
+{
+    /// <summary>The field as a post kind, or null when its newest version is not a published root.</summary>
+    public static RootPostFieldDto? From(FieldDefinition f) =>
+        f.PublishedUrlPrefix is { } prefix && f.GetVersion(f.LatestVersion)?.Snapshot is { CanBeRoot: true } s
+            ? new(f.Key, s.Title, s.Description, s.SchemaType, prefix, s.Version)
+            : null;
 }
 
 /// <summary>One published version in a field's history.</summary>

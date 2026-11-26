@@ -18,6 +18,7 @@ public class CatalogHandlers
     {
         _access.UserId.Returns("author-1");
         _fields.ListAsync(Arg.Any<FieldsByKeysSpec>(), Ct).Returns(new List<FieldDefinition>());
+        _fields.ListAsync(Arg.Any<TakenUrlPrefixesSpec>(), Ct).Returns(new List<string>());
         _fields.AddAsync(Arg.Do<FieldDefinition>(_added.Add), Ct).Returns(c => c.Arg<FieldDefinition>());
     }
 
@@ -68,6 +69,46 @@ public class CatalogHandlers
 
         result.Value.Drafts.ShouldBe(["block.gallery"]);
         _added.Single().LatestVersion.ShouldBe(0);
+    }
+
+    [Fact]
+    public async Task InstalledPostsHaveTheirStaticUrls()
+    {
+        await Install.Handle(new InstallStarterFieldsCommand(null), Ct);
+
+        _added.Where(f => f.CanBeRoot).ToDictionary(f => f.Key, f => f.PublishedUrlPrefix).ShouldBe(new Dictionary<string, string?>
+        {
+            ["post.article"] = "articles", ["post.news"] = "news", ["post.review"] = "reviews", ["post.blog"] = "blog"
+        }, ignoreOrder: true);
+        _added.Where(f => !f.CanBeRoot).ShouldAllBe(f => f.PublishedUrlPrefix == null);
+    }
+
+    [Fact]
+    public async Task APostWhosePrefixIsTakenStaysADraft()
+    {
+        _fields.ListAsync(Arg.Any<TakenUrlPrefixesSpec>(), Ct).Returns(["news"]); // a post field of the tenant's own
+
+        var result = await Install.Handle(new InstallStarterFieldsCommand(["post.news", "post.review"]), Ct);
+
+        result.Value.Drafts.ShouldBe(["post.news"]);
+        result.Value.Installed.ShouldContain("post.review");
+        _added.Single(f => f.Key == "post.news").Draft.UrlPrefix.ShouldBe("news", "the author picks another before publishing");
+    }
+
+    [Fact]
+    public async Task RootPostFieldsListThePublishedKindsWithTheirPrefixes()
+    {
+        var news = FieldDefinition.Create("post.news", NewsPost(), "author-1", Now);
+        news.Publish(new Dictionary<string, int> { ["block.paragraph"] = 1, ["block.image"] = 1 }, "author-1", Now);
+        news.EditDraft(NewsPost() with { Title = "Unpublished title" }, Now);
+        var demoted = FieldDefinition.Create("post.old", NewsPost() with { UrlPrefix = "old" }, "author-1", Now);
+        demoted.Publish(new Dictionary<string, int> { ["block.paragraph"] = 1, ["block.image"] = 1 }, "author-1", Now);
+        _read.ListAsync(Arg.Any<PublishedRootFieldsSpec>(), Ct).Returns([news]);
+
+        var result = await new ListRootPostFieldsHandler(_read).Handle(new ListRootPostFieldsQuery(), Ct);
+
+        var kind = result.Value.ShouldHaveSingleItem();
+        kind.ShouldBe(new soft.square.net.WebApi.Modules.DynamicFields.UseCases.Fields.RootPostFieldDto("post.news", "News post", null, "NewsArticle", "news", 1));
     }
 
     [Fact]

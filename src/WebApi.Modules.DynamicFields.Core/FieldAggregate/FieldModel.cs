@@ -118,6 +118,11 @@ public sealed record ChildRule(string FieldKey, int Min = 0, int? Max = null);
 /// <c>Module.Media/edit-image</c>. It gets and returns <c>{ content, style }</c>.
 /// </param>
 /// <param name="Groups">A root field's value groups (<c>main</c>, <c>seo</c>), in order; null: none.</param>
+/// <param name="UrlPrefix">
+/// A root field's static URL: the public route prefix of posts of this kind, a lowercase slug path such as <c>news</c>
+/// or <c>ar/news</c> (see <see cref="FieldRules.CheckUrlPrefix"/>). Required to publish a root field, unique among the
+/// tenant's published root fields; not allowed on other fields.
+/// </param>
 public sealed record FieldDraft(
     string Title,
     string SchemaType,
@@ -127,7 +132,8 @@ public sealed record FieldDraft(
     IReadOnlyList<ChildRule> Children,
     string? Description = null,
     string? EditorDialog = null,
-    IReadOnlyList<PropertyGroup>? Groups = null);
+    IReadOnlyList<PropertyGroup>? Groups = null,
+    string? UrlPrefix = null);
 
 /// <summary>A child rule as published: the child field pinned to the version that was current then.</summary>
 public sealed record PinnedChild(string FieldKey, int Version, int Min, int? Max);
@@ -135,6 +141,8 @@ public sealed record PinnedChild(string FieldKey, int Version, int Min, int? Max
 /// <summary>
 /// A published field version: immutable, so content made with it always validates the same way. Children are pinned
 /// to exact versions; a newer child version reaches a parent only when the parent is published again.
+/// <see cref="UrlPrefix"/> is a root field's static URL as published (null: not a root, or published before URL
+/// prefixes existed; <see cref="FieldDefinition.PublishedUrlPrefix"/> holds the current one either way).
 /// </summary>
 public sealed record FieldSnapshot(
     string Key,
@@ -147,7 +155,8 @@ public sealed record FieldSnapshot(
     IReadOnlyList<StyleProperty> Style,
     IReadOnlyList<PinnedChild> Children,
     string? EditorDialog,
-    IReadOnlyList<PropertyGroup>? Groups = null)
+    IReadOnlyList<PropertyGroup>? Groups = null,
+    string? UrlPrefix = null)
 {
     /// <summary>The values of one group, in the field's order (the first group also has the values with no group).</summary>
     public IReadOnlyList<FieldProperty> PropertiesIn(string group) =>

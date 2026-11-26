@@ -26,6 +26,7 @@ public static partial class FieldRules
     public const int MaxAccept = 20;
     public const int AcceptMaxLength = 100;
     public const int MaxGroups = 20;
+    public const int UrlPrefixMaxLength = 200;
 
     /// <summary>The filter operators a lookup understands.</summary>
     public static IReadOnlyList<string> LookupOps { get; } =
@@ -61,6 +62,51 @@ public static partial class FieldRules
     /// <summary>A property name of a lookup's entity (a search or filter field): <c>Name</c>, <c>Category.Name</c>.</summary>
     [GeneratedRegex(@"^[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)*$")]
     private static partial Regex MemberName();
+
+    /// <summary>
+    /// A root field's URL prefix: lowercase slug segments (letters, digits, single hyphens between them) separated by
+    /// <c>/</c>, with no leading or trailing slash: <c>news</c>, <c>ar/news</c>, <c>opinion-pieces</c>.
+    /// </summary>
+    [GeneratedRegex("^[a-z0-9]+(?:-[a-z0-9]+)*(?:/[a-z0-9]+(?:-[a-z0-9]+)*)*$")]
+    private static partial Regex UrlPrefixPattern();
+
+    /// <summary>Whether a text is a valid URL prefix as it stands (no trimming).</summary>
+    public static bool IsUrlPrefix(string? prefix) =>
+        prefix is { Length: > 0 and <= UrlPrefixMaxLength } && UrlPrefixPattern().IsMatch(prefix);
+
+    /// <summary>
+    /// Checks a draft's URL prefix and returns it trimmed (null when blank). Only a root field has one; publishing a
+    /// root field requires it (<see cref="FieldDefinition.Publish"/>).
+    /// </summary>
+    public static string? CheckUrlPrefix(string? prefix, bool canBeRoot)
+    {
+        var trimmed = string.IsNullOrWhiteSpace(prefix) ? null : prefix.Trim();
+        if (trimmed is null) return null;
+        if (!canBeRoot) throw new DomainException($"Only a field a post can be made of (a root) has a URL prefix: '{trimmed}'.");
+        if (!IsUrlPrefix(trimmed))
+            throw new DomainException($"A URL prefix is lowercase words (a-z, 0-9, single '-') separated by '/', with no slash at either end (e.g. news, ar/news), at most {UrlPrefixMaxLength} characters: '{trimmed}'.");
+        return trimmed;
+    }
+
+    /// <summary>
+    /// The URL prefix a root field's key suggests: <c>post.article</c> → <c>articles</c>, <c>post.news</c> → <c>news</c>,
+    /// <c>post.review</c> → <c>reviews</c>, <c>post.blog</c> → <c>blog</c>; any other key without its <c>post.</c> start and
+    /// with '.' as '-' (<c>post.photo.story</c> → <c>photo-story</c>). The data migration fills existing fields the same way.
+    /// </summary>
+    public static string SuggestUrlPrefix(string key)
+    {
+        var known = key switch
+        {
+            "post.article" => "articles",
+            "post.news" => "news",
+            "post.review" => "reviews",
+            "post.blog" => "blog",
+            _ => null
+        };
+        if (known is not null) return known;
+        var rest = key.StartsWith("post.", StringComparison.Ordinal) && key.Length > 5 ? key[5..] : key;
+        return rest.Replace('.', '-');
+    }
 
     public static string CheckKey(string? key)
     {
@@ -100,7 +146,9 @@ public static partial class FieldRules
         if (dialog is not null && (dialog.Length > DialogIdMaxLength || !DialogId().IsMatch(dialog)))
             throw new DomainException($"The editor dialog is a dialog id, \"{{module id}}/{{name}}\" (e.g. Module.Media/edit-image): '{dialog}'.");
 
-        return new FieldDraft(title, draft.SchemaType!, draft.CanBeRoot, properties, style, children, description, dialog, groups);
+        var urlPrefix = CheckUrlPrefix(draft.UrlPrefix, draft.CanBeRoot);
+
+        return new FieldDraft(title, draft.SchemaType!, draft.CanBeRoot, properties, style, children, description, dialog, groups, urlPrefix);
     }
 
     /// <summary>A root field's value groups, trimmed; null when there are none.</summary>

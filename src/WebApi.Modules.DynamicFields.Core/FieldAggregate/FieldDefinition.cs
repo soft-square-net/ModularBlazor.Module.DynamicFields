@@ -34,6 +34,12 @@ public sealed class FieldDefinition : AggregateRoot<int>, ITenantOwned
     /// <summary>Whether the draft can be a post's root, kept in a column for lists.</summary>
     public bool CanBeRoot { get; private set; }
 
+    /// <summary>
+    /// The URL prefix of the newest published version when it is a root (the public route prefix of posts of this kind),
+    /// kept in a column so it can be looked up and kept unique; null when the field is not a published root.
+    /// </summary>
+    public string? PublishedUrlPrefix { get; private set; }
+
     /// <summary>The newest published version; 0 when the field has never been published.</summary>
     public int LatestVersion { get; private set; }
 
@@ -49,7 +55,11 @@ public sealed class FieldDefinition : AggregateRoot<int>, ITenantOwned
 
     public IReadOnlyList<FieldVersion> Versions => _versions;
 
-    public FieldDraft Draft => _draft ??= JsonSerializer.Deserialize<FieldDraft>(DraftJson, FieldJson.Options)!;
+    /// <summary>
+    /// The draft. A root draft saved without a URL prefix (before prefixes existed, or by an older client) carries the
+    /// published one, so publishing it again keeps the field's URL.
+    /// </summary>
+    public FieldDraft Draft => _draft ??= WithPublishedUrlPrefix(JsonSerializer.Deserialize<FieldDraft>(DraftJson, FieldJson.Options)!);
 
     public static FieldDefinition Create(string key, FieldDraft draft, string createdBy, DateTimeOffset now)
     {
@@ -67,9 +77,12 @@ public sealed class FieldDefinition : AggregateRoot<int>, ITenantOwned
 
     /// <summary>
     /// Publishes the draft as the next version. <paramref name="publishedChildren"/> gives the newest published version of
-    /// each child field (by key); every child the draft allows must have one, and is pinned to it.
+    /// each child field (by key); every child the draft allows must have one, and is pinned to it. A root field needs its
+    /// URL prefix, and it must not be one of <paramref name="takenUrlPrefixes"/>: the prefixes of the tenant's other
+    /// published root fields.
     /// </summary>
-    public FieldVersion Publish(IReadOnlyDictionary<string, int> publishedChildren, string publishedBy, DateTimeOffset now)
+    public FieldVersion Publish(IReadOnlyDictionary<string, int> publishedChildren, string publishedBy, DateTimeOffset now,
+        IReadOnlyCollection<string>? takenUrlPrefixes = null)
     {
         if (string.IsNullOrWhiteSpace(publishedBy)) throw new DomainException("Publishing needs its author.");
         if (!HasDraftChanges) throw new DomainException($"Field '{Key}' has no changes since version {LatestVersion}.");
@@ -79,14 +92,23 @@ public sealed class FieldDefinition : AggregateRoot<int>, ITenantOwned
         if (missing.Count > 0)
             throw new DomainException($"Publish these child fields first: {string.Join(", ", missing)}.");
 
+        if (draft.CanBeRoot)
+        {
+            if (draft.UrlPrefix is null)
+                throw new DomainException($"Field '{Key}' can be a post, so it needs its URL prefix (e.g. {FieldRules.SuggestUrlPrefix(Key)}) before it is published.");
+            if (takenUrlPrefixes?.Contains(draft.UrlPrefix) == true)
+                throw new DomainException($"The URL prefix '{draft.UrlPrefix}' belongs to another published post field; choose another.");
+        }
+
         var snapshot = new FieldSnapshot(Key, LatestVersion + 1, draft.Title, draft.Description, draft.SchemaType, draft.CanBeRoot,
             draft.Properties, draft.Style,
             [.. draft.Children.Select(c => new PinnedChild(c.FieldKey, publishedChildren[c.FieldKey], c.Min, c.Max))],
-            draft.EditorDialog, draft.Groups);
+            draft.EditorDialog, draft.Groups, draft.CanBeRoot ? draft.UrlPrefix : null);
 
         var version = new FieldVersion(snapshot, publishedBy, now);
         _versions.Add(version);
         LatestVersion = snapshot.Version;
+        PublishedUrlPrefix = snapshot.UrlPrefix;
         HasDraftChanges = false;
         UpdatedAt = now;
         Version++;
@@ -96,9 +118,12 @@ public sealed class FieldDefinition : AggregateRoot<int>, ITenantOwned
     /// <summary>A published version, or null.</summary>
     public FieldVersion? GetVersion(int number) => _versions.FirstOrDefault(v => v.Number == number);
 
+    private FieldDraft WithPublishedUrlPrefix(FieldDraft draft) =>
+        draft is { CanBeRoot: true, UrlPrefix: null } && PublishedUrlPrefix is not null ? draft with { UrlPrefix = PublishedUrlPrefix } : draft;
+
     private void SetDraft(FieldDraft draft, DateTimeOffset now)
     {
-        var checkedDraft = FieldRules.Check(Key, draft);
+        var checkedDraft = WithPublishedUrlPrefix(FieldRules.Check(Key, draft));
         DraftJson = JsonSerializer.Serialize(checkedDraft, FieldJson.Options);
         _draft = checkedDraft;
         Title = checkedDraft.Title;

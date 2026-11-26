@@ -36,6 +36,7 @@ public sealed class DynamicFieldsRoutes : ICarterModule
         var catalog = app.MapGroup("/catalog").WithTags("Catalog").AddEndpointFilter<DynamicFieldsProblemsFilter>();
 
         Catalog.SchemaOrg.Map(catalog);
+        Catalog.RootPostFields.Map(catalog);
         Catalog.StarterFields.Map(catalog);
         Catalog.InstallStarterFields.Map(catalog);
     }

@@ -24,7 +24,7 @@ public sealed class EfRepositoryFields : IDisposable
         "News post", "NewsArticle", CanBeRoot: true,
         [new FieldProperty("headline", "Headline", PropertyKind.Text, Required: true, SchemaProperty: "headline")],
         [],
-        [new ChildRule("block.image", Max: 10)]);
+        [new ChildRule("block.image", Max: 10)], UrlPrefix: "news");
 
     private async Task<FieldDefinition> AddAsync(string key, FieldDraft draft, string tenant = "acme")
     {
@@ -94,6 +94,27 @@ public sealed class EfRepositoryFields : IDisposable
         var search = new FieldsPageSpec(1, 1, search: "IMAGE");
         (await fields.ListAsync(search, Ct)).Select(f => f.Key).ShouldBe(["block.gallery-image"]);
         (await fields.CountAsync(search, Ct)).ShouldBe(2);
+    }
+
+    [Fact]
+    public async Task PublishedRootFieldsKeepTheirUrlPrefixPerTenant()
+    {
+        await AddAsync("block.image", Image());
+        await PublishAsync("block.image", new Dictionary<string, int>());
+        await AddAsync("post.news", Post());
+        await PublishAsync("post.news", new Dictionary<string, int> { ["block.image"] = 1 });
+        await AddAsync("post.review", Post() with { Title = "Review", UrlPrefix = "reviews" }); // a draft: not published
+        await AddAsync("post.news", Post(), tenant: "globex");
+
+        await using var context = _database.For("acme");
+        var fields = new EfRepository<FieldDefinition>(context);
+
+        (await fields.ListAsync(new TakenUrlPrefixesSpec(), Ct)).ShouldBe(["news"]);
+        (await fields.ListAsync(new TakenUrlPrefixesSpec("post.news"), Ct)).ShouldBeEmpty();
+        var root = (await fields.ListAsync(new PublishedRootFieldsSpec(), Ct)).ShouldHaveSingleItem();
+        root.Key.ShouldBe("post.news");
+        root.PublishedUrlPrefix.ShouldBe("news");
+        root.GetVersion(1)!.Snapshot.UrlPrefix.ShouldBe("news");
     }
 
     [Fact]

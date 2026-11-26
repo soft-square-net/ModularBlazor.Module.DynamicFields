@@ -7,9 +7,10 @@ public sealed record StarterField(string Key, FieldDraft Draft);
 
 /// <summary>
 /// The starter library: ready-made blocks (heading, text, paragraph, quote, image, video, audio, gallery) and posts
-/// (article, news, blog post) built on the schema.org catalog, with the values search engines ask for marked required. A
-/// tenant installs them on demand; they then are ordinary fields it can change and publish again. Listed children
-/// first, so installing in this order can publish each field right away.
+/// (article, news, review, blog post) built on the schema.org catalog, with the values search engines ask for marked
+/// required. Each post has its static URL (<see cref="FieldDraft.UrlPrefix"/>): <c>articles</c>, <c>news</c>,
+/// <c>reviews</c>, <c>blog</c>. A tenant installs them on demand; they then are ordinary fields it can change and publish
+/// again. Listed children first, so installing in this order can publish each field right away.
 /// </summary>
 public static class StarterFields
 {
@@ -117,16 +118,21 @@ public static class StarterFields
 
         new("post.article", new FieldDraft("Article", "Article", true,
             PostValues(), [StylePresets.Layout, StylePresets.Tone], AnyBlock,
-            "A general article, made of blocks.", Groups: PostGroups)),
+            "A general article, made of blocks.", Groups: PostGroups, UrlPrefix: "articles")),
 
         new("post.news", new FieldDraft("News", "NewsArticle", true,
             PostValues(P("dateline"), P("isAccessibleForFree", "isAccessibleForFree", "Free to read")),
             [StylePresets.Layout, StylePresets.Tone], AnyBlock,
-            "A news story, with its dateline.", Groups: PostGroups)),
+            "A news story, with its dateline.", Groups: PostGroups, UrlPrefix: "news")),
+
+        new("post.review", new FieldDraft("Review", "Review", true,
+            PostValues(P("itemReviewed", required: true), P("reviewRating")),
+            [StylePresets.Layout, StylePresets.Tone], AnyBlock,
+            "A review of a film, a book, a product or a place, with its rating.", Groups: PostGroups, UrlPrefix: "reviews")),
 
         new("post.blog", new FieldDraft("Blog post", "BlogPosting", true,
             PostValues(), [StylePresets.Layout, StylePresets.Tone], AnyBlock,
-            "A blog post, made of blocks.", Groups: PostGroups)),
+            "A blog post, made of blocks.", Groups: PostGroups, UrlPrefix: "blog")),
     ];
 
     /// <summary>A starter field by key, or null.</summary>

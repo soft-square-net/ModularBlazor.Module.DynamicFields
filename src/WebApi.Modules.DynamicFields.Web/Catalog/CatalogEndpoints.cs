@@ -1,4 +1,5 @@
 using soft.square.net.WebApi.Modules.DynamicFields.UseCases.Catalog;
+using soft.square.net.WebApi.Modules.DynamicFields.UseCases.Fields;
 
 namespace soft.square.net.WebApi.Modules.DynamicFields.Web.Catalog;
 
@@ -13,6 +14,19 @@ public sealed class SchemaOrg : IEndpoint
 
     private static async Task<Results<Ok<SchemaOrgCatalogDto>, ProblemHttpResult>> HandleAsync(ISender sender, CancellationToken ct) =>
         (await sender.Send(new GetSchemaOrgCatalogQuery(), ct)).ToOkResult();
+}
+
+/// <summary>GET /catalog/root-post-fields: the published root post fields (post kinds) with their static URLs.</summary>
+public sealed class RootPostFields : IEndpoint
+{
+    public static RouteHandlerBuilder Map(IEndpointRouteBuilder catalog) =>
+        catalog.MapGet("/root-post-fields", HandleAsync)
+            .RequirePermission(DynamicFieldsPermissions.Read)
+            .WithName("DynamicFields_ListRootPostFields")
+            .WithSummary("The published root post fields (the post kinds) by key, each with its URL prefix: the public route prefix of its posts.");
+
+    private static async Task<Results<Ok<IReadOnlyList<RootPostFieldDto>>, ProblemHttpResult>> HandleAsync(ISender sender, CancellationToken ct) =>
+        (await sender.Send(new ListRootPostFieldsQuery(), ct)).ToOkResult();
 }
 
 /// <summary>GET /catalog/starter-fields: the starter library, marked with the fields the tenant has already.</summary>
