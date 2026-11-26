@@ -18,7 +18,11 @@ public class FieldHandlers
     private readonly TestClock _clock = new();
     private readonly ILookupClient _lookups = Substitute.For<ILookupClient>();
 
-    public FieldHandlers() => _access.UserId.Returns("author-1");
+    public FieldHandlers()
+    {
+        _access.UserId.Returns("author-1");
+        _fields.ListAsync(Arg.Any<TakenUrlPrefixesSpec>(), Ct).Returns(new List<string>());
+    }
 
     private static FieldDefinition Published(string key, FieldDraft draft, Dictionary<string, int>? children = null)
     {
@@ -63,6 +67,21 @@ public class FieldHandlers
         result.IsSuccess.ShouldBeTrue();
         result.Value.Field.Children.Select(c => (c.FieldKey, c.Version)).ShouldBe([("block.paragraph", 2), ("block.image", 1)]);
         await _fields.Received(1).UpdateAsync(post, Ct);
+    }
+
+    [Fact]
+    public async Task PublishRefusesAPrefixAnotherPostFieldHas()
+    {
+        var post = FieldDefinition.Create("post.story", NewsPost(), "author-1", Now);
+        _fields.FirstOrDefaultAsync(Arg.Any<FieldByKeySpec>(), Ct).Returns(post);
+        _fields.ListAsync(Arg.Any<FieldsByKeysSpec>(), Ct).Returns([Published("block.paragraph", Paragraph()), Published("block.image", Image())]);
+        _fields.ListAsync(Arg.Any<TakenUrlPrefixesSpec>(), Ct).Returns(["news"]);
+
+        var handler = new PublishFieldHandler(_fields, _access, _clock, _lookups);
+
+        (await Should.ThrowAsync<DomainException>(() => handler.Handle(new PublishFieldCommand("post.story", 0), Ct).AsTask()))
+            .Message.ShouldContain("'news' belongs to another published post field");
+        await _fields.DidNotReceive().UpdateAsync(post, Ct);
     }
 
     [Fact]

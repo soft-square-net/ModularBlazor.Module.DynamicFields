@@ -1,3 +1,4 @@
+using System.Text.RegularExpressions;
 using soft.square.net.WebApi.Modules.DynamicFields.Client;
 
 namespace soft.square.net.Module.DynamicFields.Builder;
@@ -7,7 +8,7 @@ namespace soft.square.net.Module.DynamicFields.Builder;
 /// row per value, style and child), turned back into the API's <see cref="FieldDraft"/> to save, and into a
 /// <see cref="FieldSnapshot"/> for the live preview. The server checks the draft; the builder only shapes it.
 /// </summary>
-public sealed class FieldBuilderState
+public sealed partial class FieldBuilderState
 {
     public string Key { get; set; } = "";
     public string Title { get; set; } = "";
@@ -15,6 +16,10 @@ public sealed class FieldBuilderState
     public string SchemaType { get; set; } = "CreativeWork";
     public bool CanBeRoot { get; set; }
     public string? EditorDialog { get; set; }
+
+    /// <summary>A root field's static URL, the public route prefix of its posts (<c>news</c>, <c>ar/news</c>).</summary>
+    public string? UrlPrefix { get; set; }
+
     public List<PropertyRow> Properties { get; } = [];
     public List<StyleRow> Style { get; } = [];
     public List<ChildRow> Children { get; } = [];
@@ -34,7 +39,8 @@ public sealed class FieldBuilderState
             Description = draft.Description,
             SchemaType = draft.SchemaType,
             CanBeRoot = draft.CanBeRoot,
-            EditorDialog = draft.EditorDialog
+            EditorDialog = draft.EditorDialog,
+            UrlPrefix = draft.UrlPrefix
         };
         state.Properties.AddRange(draft.Properties.Select(PropertyRow.From));
         state.Style.AddRange(draft.Style.Select(StyleRow.From));
@@ -51,6 +57,7 @@ public sealed class FieldBuilderState
         CanBeRoot = CanBeRoot,
         Description = Blank(Description),
         EditorDialog = Blank(EditorDialog),
+        UrlPrefix = CanBeRoot ? Blank(UrlPrefix) : null,
         Properties = [.. Properties.Select(p => p.ToModel(GroupOf(p)))],
         Style = [.. Style.Select(s => s.ToModel())],
         Children = [.. Children.Select(c => new ChildRule { FieldKey = c.FieldKey, Min = c.Min, Max = c.Max })]
@@ -83,7 +90,34 @@ public sealed class FieldBuilderState
             Style = [.. draft.Style.Where(s => s.Values.Count > 0)],
             Children = [.. draft.Children.Select(c => new PinnedChild { FieldKey = c.FieldKey, Version = 0, Min = c.Min ?? 0, Max = c.Max })],
             EditorDialog = draft.EditorDialog,
-            Groups = draft.Groups
+            Groups = draft.Groups,
+            UrlPrefix = draft.UrlPrefix
+        };
+    }
+
+    /// <summary>The server's URL prefix rule (FieldRules.IsUrlPrefix): lowercase slug segments joined by '/'.</summary>
+    [GeneratedRegex("^[a-z0-9]+(?:-[a-z0-9]+)*(?:/[a-z0-9]+(?:-[a-z0-9]+)*)*$")]
+    private static partial Regex UrlPrefixPattern();
+
+    /// <summary>Whether the typed URL prefix is blank (none yet) or keeps the rule.</summary>
+    public bool UrlPrefixIsValid =>
+        string.IsNullOrWhiteSpace(UrlPrefix) || (UrlPrefix.Trim().Length <= 200 && UrlPrefixPattern().IsMatch(UrlPrefix.Trim()));
+
+    /// <summary>
+    /// The URL prefix a key suggests, as the server's FieldRules.SuggestUrlPrefix: post.article → articles, post.news →
+    /// news, post.review → reviews, post.blog → blog; else the key without "post." and with '.' as '-'.
+    /// </summary>
+    public static string SuggestUrlPrefix(string key)
+    {
+        key = key.Trim();
+        return key switch
+        {
+            "post.article" => "articles",
+            "post.news" => "news",
+            "post.review" => "reviews",
+            "post.blog" => "blog",
+            "" => "news",
+            _ => (key.StartsWith("post.", StringComparison.Ordinal) && key.Length > 5 ? key[5..] : key).Replace('.', '-')
         };
     }
 

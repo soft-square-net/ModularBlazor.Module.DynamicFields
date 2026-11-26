@@ -7,7 +7,7 @@ namespace soft.square.net.WebApi.Modules.DynamicFields.UseCases.Fields.Publish;
 /// <summary>
 /// Publish a field's draft as its next version, pinning each child field to that child's newest published version.
 /// <paramref name="Version"/> is the version the caller read. Lookup properties must name lookups the catalog has
-/// (<see cref="LookupBindings"/>).
+/// (<see cref="LookupBindings"/>). A root field's URL prefix must not be another published root field's.
 /// </summary>
 public sealed record PublishFieldCommand(string Key, int Version) : ICommand<Result<FieldVersionDto>>;
 
@@ -32,7 +32,9 @@ public sealed class PublishFieldHandler(IRepository<FieldDefinition> fields, IAc
                 .Where(c => c.LatestVersion > 0)
                 .ToDictionary(c => c.Key, c => c.LatestVersion);
 
-        var version = field.Publish(published, me, clock.GetUtcNow());
+        var taken = field.Draft.CanBeRoot ? await fields.ListAsync(new TakenUrlPrefixesSpec(field.Key), ct) : [];
+
+        var version = field.Publish(published, me, clock.GetUtcNow(), taken);
         await fields.UpdateAsync(field, ct);
         return FieldVersionDto.From(version);
     }

@@ -34,7 +34,7 @@ public static class Samples
             new FieldProperty("section", "Section", PropertyKind.Choice, Options: ["news", "sports", "culture"])
         ],
         [new StyleProperty("layout", "Layout", ["standard", "wide"], Default: "standard")],
-        [new ChildRule("block.paragraph", Min: 1), new ChildRule("block.image", Max: 10)]);
+        [new ChildRule("block.paragraph", Min: 1), new ChildRule("block.image", Max: 10)], UrlPrefix: "news");
 
     /// <summary>The three fields published at version 1, as the validator resolves them.</summary>
     public static Func<string, int, FieldSnapshot?> Published()
@@ -47,7 +47,11 @@ public static class Samples
     }
 
     public static FieldSnapshot Publish(string key, FieldDraft draft, IReadOnlyDictionary<string, int> children) =>
-        FieldDefinition.Create(key, draft, "author-1", Now).Publish(children, "author-1", Now).Snapshot;
+        FieldDefinition.Create(key, WithUrlPrefix(key, draft), "author-1", Now).Publish(children, "author-1", Now).Snapshot;
+
+    /// <summary>A root draft without a URL prefix gets the one its key suggests, so it can be published.</summary>
+    public static FieldDraft WithUrlPrefix(string key, FieldDraft draft) =>
+        draft is { CanBeRoot: true, UrlPrefix: null } ? draft with { UrlPrefix = FieldRules.SuggestUrlPrefix(key) } : draft;
 
     public static JsonElement Json(string json) => JsonDocument.Parse(json).RootElement.Clone();
 

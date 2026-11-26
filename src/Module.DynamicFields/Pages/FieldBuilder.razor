@@ -136,6 +136,30 @@
               <div class="mud-input-helper-text">@L["When to use it; authors see it in the editor."]</div>
             </div>
             <label class="mn-check"><input type="checkbox" @bind="_s.CanBeRoot" /> @L["A post can be made of it (a root, with no parent): an article, a news story, a gallery page."]</label>
+            @if (_s.CanBeRoot)
+            {
+              var suggested = FieldBuilderState.SuggestUrlPrefix(_s.Key);
+              <div class="mud-input-control df-url-prefix">
+                <label class="mud-input-label" for="fb-url-prefix">@L["URL prefix *"]</label>
+                <div class="mud-input-wrapper">
+                  <span class="mn-muted" aria-hidden="true">/</span>
+                  <input id="fb-url-prefix" class="mud-input-slot" dir="ltr" @bind="_s.UrlPrefix" @bind:event="oninput" maxlength="200"
+                         placeholder="@suggested" aria-invalid="@(!_s.UrlPrefixIsValid)" aria-describedby="fb-url-prefix-help" />
+                  <span class="mn-muted" aria-hidden="true">/…</span>
+                </div>
+                <div id="fb-url-prefix-help" class="mud-input-helper-text">@L["The public address of posts of this kind: \"news\" gives /news/…. Lowercase words (a-z, 0-9, \"-\") separated by \"/\", e.g. news or ar/news. Needed to publish; no other post field may use it."]</div>
+                @if (!_s.UrlPrefixIsValid)
+                {
+                  <div class="mud-input-helper-text mn-error" role="alert">@L["A URL prefix is lowercase letters, digits and single hyphens, with \"/\" between its parts and none at either end."]</div>
+                }
+                else if (string.IsNullOrWhiteSpace(_s.UrlPrefix))
+                {
+                  <div class="mn-row-actions">
+                    <button type="button" class="mud-button-root mud-button-text mud-button-small" @onclick="() => _s.UrlPrefix = suggested">@L["Use /{0}", suggested]</button>
+                  </div>
+                }
+              </div>
+            }
           </section>
 
           @* 2. Values *@
@@ -835,6 +859,11 @@
   private async Task<bool> SaveAsync()
   {
     if (_s is null) return false;
+    if (_s.CanBeRoot && !_s.UrlPrefixIsValid)
+    {
+      Error = L["A URL prefix is lowercase letters, digits and single hyphens, with \"/\" between its parts and none at either end."];
+      return false;
+    }
     var draft = _s.ToDraft();
     return await RunAsync(async () =>
     {
@@ -858,6 +887,11 @@
   private async Task PublishAsync()
   {
     if (_detail is null) return;
+    if (_s is { CanBeRoot: true } && string.IsNullOrWhiteSpace(_s.UrlPrefix))
+    {
+      Error = L["A post field needs its URL prefix before it is published."];
+      return;
+    }
     if (Dirty && !await SaveAsync()) return;
     var detail = _detail;
     await RunAsync(async () =>

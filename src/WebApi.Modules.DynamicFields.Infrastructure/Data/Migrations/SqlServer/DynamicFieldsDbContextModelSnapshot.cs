@@ -57,6 +57,10 @@ namespace soft.square.net.WebApi.Modules.DynamicFields.Infrastructure.Data.Migra
                     b.Property<int>("LatestVersion")
                         .HasColumnType("int");
 
+                    b.Property<string>("PublishedUrlPrefix")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
                     b.Property<string>("SchemaType")
                         .IsRequired()
                         .HasMaxLength(64)

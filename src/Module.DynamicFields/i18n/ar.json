@@ -222,5 +222,10 @@
   "The summary and keywords search engines and link previews show.": "الملخص والكلمات المفتاحية التي تعرضها محركات البحث ومعاينات الروابط.",
   "New group": "مجموعة جديدة",
   "Building…": "جارٍ البناء…",
-  "The schema.org data could not be built: {0}": "تعذّر بناء بيانات schema.org: {0}"
+  "The schema.org data could not be built: {0}": "تعذّر بناء بيانات schema.org: {0}",
+  "URL prefix *": "بادئة الرابط *",
+  "The public address of posts of this kind: \"news\" gives /news/…. Lowercase words (a-z, 0-9, \"-\") separated by \"/\", e.g. news or ar/news. Needed to publish; no other post field may use it.": "العنوان العام لمنشورات هذا النوع: «news» تعطي ‎/news/…‎. كلمات بأحرف لاتينية صغيرة (a-z، 0-9، «-») تفصلها «/»، مثل news أو ar/news. مطلوبة للنشر، ولا يجوز أن يستخدمها حقل منشور آخر.",
+  "A URL prefix is lowercase letters, digits and single hyphens, with \"/\" between its parts and none at either end.": "بادئة الرابط أحرف لاتينية صغيرة وأرقام وشَرطات مفردة، تفصل «/» بين أجزائها ولا تكون في أولها ولا آخرها.",
+  "Use /{0}": "استخدم ‎/{0}",
+  "A post field needs its URL prefix before it is published.": "يحتاج حقل المنشور إلى بادئة رابط قبل نشره."
 }

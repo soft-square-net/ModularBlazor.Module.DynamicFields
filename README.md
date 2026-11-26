@@ -50,7 +50,7 @@ The module's id, route prefix and database schema are `dynamicfields`; its permi
 | `GET /fields/{key}/versions/{number}` | `dynamicfields.read` | `GetFieldVersionQuery`: a published version (0: the newest), with its content and style as JSON Schema 2020-12 |
 | `POST /fields` `{ key, draft }` | `dynamicfields.manage` | `CreateFieldCommand`: 201 with the field; 409 if the key exists |
 | `PUT /fields/{key}/draft` `{ version, draft }` | `dynamicfields.manage` | `EditFieldDraftCommand`: 409 if the field changed since `version` |
-| `POST /fields/{key}/publish` `{ version }` | `dynamicfields.manage` | `PublishFieldCommand`: the next version; 409 if a child field is not published yet |
+| `POST /fields/{key}/publish` `{ version }` | `dynamicfields.manage` | `PublishFieldCommand`: the next version; 409 if a child field is not published yet, or a root field has no URL prefix or another published root field's |
 | `DELETE /fields/{key}?version=` | `dynamicfields.manage` | `DeleteFieldCommand`: 204; 409 once the field has been published |
 | `POST /content/validate` `{ root }` | `dynamicfields.read` | `ValidateContentQuery`: `{ valid, issues: [{ path, message }] }`, paths as JSON Pointers |
 | `POST /content/validate-node` `{ field, fieldVersion, content, style }` | `dynamicfields.read` | `ValidateNodeQuery`: one node's values and style (no children), the same report; 404 if the version is not published |
@@ -58,6 +58,7 @@ The module's id, route prefix and database schema are `dynamicfields`; its permi
 | `POST /content/translations/apply` `{ root, translations, culture?, useStale? }` | `dynamicfields.read` | `ApplyTranslationsQuery`: the tree with its text in the reader's culture (the culture's overlay, then its parents', then the source), the `chain` used and counts |
 | `POST /content/jsonld` `{ root, assets?, names?, url?, language?, draft?, placeholders? }` | `dynamicfields.read` | `BuildJsonLdQuery`: the post as schema.org JSON-LD (see "JSON-LD"), `{ jsonLd, skipped }`; 404 if the root's version is not published (and no `draft` is given) |
 | `GET /catalog/schema-org` | `dynamicfields.read` | `GetSchemaOrgCatalogQuery`: the schema.org types (path, every property, suggested ones), their properties (label, suggested kind, limits) and the style presets |
+| `GET /catalog/root-post-fields` | `dynamicfields.read` | `ListRootPostFieldsQuery`: the published root post fields (the post kinds) by key, `[{ key, title, description, schemaType, urlPrefix, version }]` (see "Root post fields and their URLs") |
 | `GET /catalog/starter-fields` | `dynamicfields.read` | `ListStarterFieldsQuery`: the starter library, each marked `installed` when the tenant has a field with its key |
 | `POST /catalog/starter-fields/install` `{ keys? }` | `dynamicfields.manage` | `InstallStarterFieldsCommand`: creates and publishes them (no keys: all) with the fields they contain; `{ installed, skipped, drafts }` |
 
@@ -86,11 +87,36 @@ views can set them apart.
 
 The **starter library** (`StarterFields`) is ready-made fields built on it, with the values search engines ask for
 marked required: the blocks `block.heading`, `block.text`, `block.paragraph`, `block.quote`, `block.image` (with
-required alternative text), `block.video`, `block.audio`, `block.gallery` (of images), and the posts `post.article`,
-`post.news` and `post.blog`, which may contain any block. The posts group their values: `main` (Story) and `seo` (Search
+required alternative text), `block.video`, `block.audio`, `block.gallery` (of images), and the posts `post.article`
+(URL prefix `articles`), `post.news` (`news`), `post.review` (`reviews`, a schema.org Review with what it reviews and its
+rating) and `post.blog` (`blog`), which may contain any block. The posts group their values: `main` (Story) and `seo` (Search
 and sharing: the summary and keywords). A tenant installs them on demand; installed fields are
 ordinary fields it can change and publish again. Installing never overwrites a key the tenant has; a parent whose child
-exists unpublished is created as a draft.
+exists unpublished is created as a draft, and so is a post whose URL prefix another published post field of the tenant
+has already (pick another prefix, then publish it).
+
+### Root post fields and their URLs
+
+A root field (`canBeRoot`, a field a post can be made of) is a **post kind**: Article, News, Review. Each has a static URL,
+`urlPrefix` on its draft and on each published version: the public route prefix of posts of that kind (`news` gives
+`/news/...`). The rules (`FieldRules.CheckUrlPrefix`, checked in the domain, a 409 when broken):
+
+- a lowercase slug path: segments of `a-z`, `0-9` and single hyphens between them, separated by `/`, with no slash at
+  either end, at most 200 characters (`news`, `ar/news`, `opinion-pieces`);
+- only a root field has one; publishing a root field requires it;
+- unique per tenant among the root fields that are published now (`fields.PublishedUrlPrefix`, the newest published
+  version's prefix; checked when publishing).
+
+Publishing a field that is no longer a root drops its prefix. A root draft saved without one (an older client, or a field
+from before prefixes) keeps the published prefix. The migration `AddUrlPrefix` gave every published root field the prefix
+its key suggests (`FieldRules.SuggestUrlPrefix`: `post.article` → `articles`, `post.news` → `news`, `post.review` →
+`reviews`, `post.blog` → `blog`, any other key without `post.` and with `.` as `-`), with `-{id}` added where two fields of
+a tenant would share one.
+
+A posts module resolves a post's kind (the root field key) to its URL with `GET /catalog/root-post-fields`: one entry per
+published root field, with the newest version's title, description and schema type. `GET /fields` also returns
+`urlPrefix` per field (null when the field is not a published root). The field builder has a URL prefix input for root
+fields, with the suggestion of its key.
 
 ### The Blazor client
 
