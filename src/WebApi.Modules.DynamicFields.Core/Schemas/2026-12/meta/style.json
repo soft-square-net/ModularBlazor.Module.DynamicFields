@@ -1,0 +1,30 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.soft-square.net/dynamicfields/2026-12/meta/style",
+  "$dynamicAnchor": "meta",
+  "title": "DynamicFields style vocabulary",
+  "description": "Annotations on a style value: the theme token it sets (rendered as data-mb-{token}) and whether it may differ per breakpoint.",
+  "type": [
+    "object",
+    "boolean"
+  ],
+  "properties": {
+    "styleToken": {
+      "description": "The theme token the value sets.",
+      "type": "string",
+      "minLength": 1
+    },
+    "responsive": {
+      "description": "Whether the value may be given per breakpoint: { \"base\": ..., \"md\": ... }.",
+      "type": "boolean"
+    },
+    "breakpoints": {
+      "description": "The breakpoints a responsive value may name.",
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "uniqueItems": true
+    }
+  }
+}

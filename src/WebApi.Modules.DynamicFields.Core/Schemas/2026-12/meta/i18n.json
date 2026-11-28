@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.soft-square.net/dynamicfields/2026-12/meta/i18n",
+  "$dynamicAnchor": "meta",
+  "title": "DynamicFields translation vocabulary",
+  "description": "Annotations: whether a text value has a translation per language.",
+  "type": [
+    "object",
+    "boolean"
+  ],
+  "properties": {
+    "translatable": {
+      "description": "Whether the value is translated per language (text that is not language, such as a code or a slug, is not).",
+      "type": "boolean"
+    }
+  }
+}

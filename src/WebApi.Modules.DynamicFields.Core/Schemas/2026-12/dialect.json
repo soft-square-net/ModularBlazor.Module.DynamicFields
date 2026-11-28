@@ -1,0 +1,41 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.soft-square.net/dynamicfields/2026-12/dialect",
+  "$vocabulary": {
+    "https://json-schema.org/draft/2020-12/vocab/core": true,
+    "https://json-schema.org/draft/2020-12/vocab/applicator": true,
+    "https://json-schema.org/draft/2020-12/vocab/unevaluated": true,
+    "https://json-schema.org/draft/2020-12/vocab/validation": true,
+    "https://json-schema.org/draft/2020-12/vocab/meta-data": true,
+    "https://json-schema.org/draft/2020-12/vocab/format-annotation": true,
+    "https://json-schema.org/draft/2020-12/vocab/content": true,
+    "https://schemas.soft-square.net/dynamicfields/2026-12/vocab/reference": true,
+    "https://schemas.soft-square.net/dynamicfields/2026-12/vocab/schema-org": false,
+    "https://schemas.soft-square.net/dynamicfields/2026-12/vocab/style": false,
+    "https://schemas.soft-square.net/dynamicfields/2026-12/vocab/ui": false,
+    "https://schemas.soft-square.net/dynamicfields/2026-12/vocab/i18n": false
+  },
+  "$dynamicAnchor": "meta",
+  "title": "DynamicFields dialect (2026-12)",
+  "description": "JSON Schema 2020-12 with five vocabularies: reference (asserts), schema-org, style, ui and i18n (annotate). A published field version compiles to one schema in this dialect.",
+  "allOf": [
+    {
+      "$ref": "https://json-schema.org/draft/2020-12/schema"
+    },
+    {
+      "$ref": "meta/reference"
+    },
+    {
+      "$ref": "meta/schema-org"
+    },
+    {
+      "$ref": "meta/style"
+    },
+    {
+      "$ref": "meta/ui"
+    },
+    {
+      "$ref": "meta/i18n"
+    }
+  ]
+}

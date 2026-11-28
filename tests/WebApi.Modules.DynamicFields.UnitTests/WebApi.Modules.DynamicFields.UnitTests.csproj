@@ -8,4 +8,13 @@
     <ProjectReference Include="..\..\src\WebApi.Modules.DynamicFields.UseCases\WebApi.Modules.DynamicFields.UseCases.csproj" />
   </ItemGroup>
 
+  <!-- A JSON Schema 2020-12 validator, to check the dialect and the compiled schemas against the standard (tests only;
+       the module itself does not validate with JSON Schema yet). -->
+  <ItemGroup>
+    <!-- Behind an alias, with its dependencies: their root namespace, Json, would hide the Samples.Json helper the tests import. -->
+    <PackageReference Include="JsonSchema.Net" Version="9.4.0" Aliases="JsonSchemaNet" />
+    <PackageReference Include="JsonPointer.Net" Version="7.0.2" Aliases="JsonSchemaNet" />
+    <PackageReference Include="Json.More.Net" Version="3.0.1" Aliases="JsonSchemaNet" />
+  </ItemGroup>
+
 </Project>

@@ -2,6 +2,7 @@ using Carter;
 using Catalog = soft.square.net.WebApi.Modules.DynamicFields.Web.Catalog;
 using Content = soft.square.net.WebApi.Modules.DynamicFields.Web.Content;
 using Fields = soft.square.net.WebApi.Modules.DynamicFields.Web.Fields;
+using Schemas = soft.square.net.WebApi.Modules.DynamicFields.Web.Schemas;
 
 namespace soft.square.net.WebApi.Modules.DynamicFields.Web;
 
@@ -39,5 +40,10 @@ public sealed class DynamicFieldsRoutes : ICarterModule
         Catalog.RootPostFields.Map(catalog);
         Catalog.StarterFields.Map(catalog);
         Catalog.InstallStarterFields.Map(catalog);
+
+        // The dialect and its meta-schemas: public files, no problems filter (nothing to translate).
+        var schemas = app.MapGroup("/schemas").WithTags("Schemas");
+
+        Schemas.GetDialectSchema.Map(schemas);
     }
 }

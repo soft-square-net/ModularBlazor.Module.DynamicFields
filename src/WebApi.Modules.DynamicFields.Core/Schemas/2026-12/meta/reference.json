@@ -1,0 +1,51 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.soft-square.net/dynamicfields/2026-12/meta/reference",
+  "$dynamicAnchor": "meta",
+  "title": "DynamicFields reference vocabulary",
+  "description": "Asserting keywords: what a value refers to (a file, a keyword, a term, a lookup item), the files an asset value takes, and the limits of a whole content tree. The owner module checks that a reference exists; the tree keywords sit on a root (post) field's schema.",
+  "type": [
+    "object",
+    "boolean"
+  ],
+  "properties": {
+    "refKind": {
+      "description": "What the value refers to; its owner module checks that it exists.",
+      "enum": [
+        "asset",
+        "keyword",
+        "term",
+        "lookup"
+      ]
+    },
+    "accept": {
+      "description": "The files an asset value takes: content types (image/png), families (image/*) or extensions (.pdf).",
+      "type": "array",
+      "items": {
+        "type": "string",
+        "pattern": "^([a-z0-9][a-z0-9.+-]*/(\\*|[a-z0-9][a-z0-9.+-]*)|\\.[a-z0-9]+)$"
+      },
+      "maxItems": 20,
+      "uniqueItems": true
+    },
+    "lookup": {
+      "description": "The lookup a lookup value picks from (GET /api/lookups lists them).",
+      "type": "string",
+      "minLength": 1
+    },
+    "uniqueNodeIds": {
+      "description": "Every node id in the tree is used once.",
+      "type": "boolean"
+    },
+    "maxDepth": {
+      "description": "How many levels the tree nests at most.",
+      "type": "integer",
+      "minimum": 1
+    },
+    "maxNodes": {
+      "description": "How many nodes the tree holds at most.",
+      "type": "integer",
+      "minimum": 1
+    }
+  }
+}
