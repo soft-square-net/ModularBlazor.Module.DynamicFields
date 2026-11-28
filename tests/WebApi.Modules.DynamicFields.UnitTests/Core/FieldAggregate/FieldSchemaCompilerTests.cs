@@ -120,7 +120,7 @@ public class FieldSchemaCompilerTests
         var content = schema["properties"]!["content"]!;
         content["properties"]!["headline"]!["schemaOrgProperty"]!.GetValue<string>().ShouldBe("headline");
         content["properties"]!["headline"]!["translatable"]!.GetValue<bool>().ShouldBeTrue();
-        content["properties"]!["topics"]!["anyOf"]![1]!["items"]!["refKind"]!.GetValue<string>().ShouldBe("keyword");
+        content["properties"]!["topics"]!["items"]!["refKind"]!.GetValue<string>().ShouldBe("keyword");
 
         var children = schema["properties"]!["children"]!;
         children["items"]!["anyOf"]!.AsArray().Select(r => r!["$ref"]!.GetValue<string>())

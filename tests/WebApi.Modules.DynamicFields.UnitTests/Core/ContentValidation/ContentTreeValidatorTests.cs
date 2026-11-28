@@ -1,14 +1,30 @@
 using soft.square.net.WebApi.Modules.DynamicFields.Core.ContentValidation;
 using soft.square.net.WebApi.Modules.DynamicFields.Core.FieldAggregate;
+using soft.square.net.WebApi.Modules.DynamicFields.UseCases.Content.Engine;
 using static soft.square.net.WebApi.Modules.DynamicFields.UnitTests.Samples;
 
 namespace soft.square.net.WebApi.Modules.DynamicFields.UnitTests.Core.ContentValidation;
 
-public class ContentTreeValidatorTests
+/// <summary>The legacy rules.</summary>
+public class ContentTreeValidatorTests : ContentRulesTests
+{
+    protected override IContentValidator Rules { get; } = new LegacyContentValidator();
+}
+
+/// <summary>The schema engine, giving the legacy rules' answers (<see cref="ParityChecked"/>).</summary>
+public class SchemaEngineTests : ContentRulesTests
+{
+    protected override IContentValidator Rules { get; } = new ParityChecked();
+}
+
+/// <summary>What content checks report, whichever engine checks it.</summary>
+public abstract class ContentRulesTests
 {
     private static readonly Func<string, int, FieldSnapshot?> Fields = Published();
 
-    private static IReadOnlyList<ContentIssue> Check(ContentNode root) => ContentTreeValidator.Validate(root, Fields);
+    protected abstract IContentValidator Rules { get; }
+
+    private IReadOnlyList<ContentIssue> Check(ContentNode root) => Rules.Validate(root, Fields);
 
     [Fact]
     public void AValidPostHasNoIssues() => Check(Post()).ShouldBeEmpty();
@@ -137,11 +153,11 @@ public class ContentTreeValidatorTests
         var root = Publish("block.mixed", draft with { CanBeRoot = true }, new Dictionary<string, int>());
         FieldSnapshot? Resolve(string key, int version) => key == root.Key && version == 1 ? root : null;
 
-        ContentTreeValidator.Validate(Node("block.mixed",
+        Rules.Validate(Node("block.mixed",
                 """{ "count": 2, "ratio": 0.5, "live": true, "day": "2026-11-21", "at": "2026-11-21T09:30:00+02:00", "link": "https://example.com/a" }"""),
             Resolve).ShouldBeEmpty();
 
-        ContentTreeValidator.Validate(Node("block.mixed",
+        Rules.Validate(Node("block.mixed",
                 """{ "count": 1.5, "ratio": "x", "live": "yes", "day": "21/11/2026", "at": "2026-11-21T09:30:00", "link": "ftp://example.com" }"""),
             Resolve).Select(i => i.Path).ShouldBe(
                 ["/content/count", "/content/ratio", "/content/live", "/content/day", "/content/at", "/content/link"], ignoreOrder: true);
@@ -159,22 +175,34 @@ public class ContentTreeValidatorTests
         var node = Node("block.leaf", """{ "text": "x" }""");
         for (var i = 0; i < ContentTreeValidator.MaxDepth + 2; i++) node = Node("block.leaf", """{ "text": "x" }""", "{}", node);
 
-        ContentTreeValidator.Validate(Node("block.root", """{ "text": "x" }""", "{}", node), Resolve)
+        Rules.Validate(Node("block.root", """{ "text": "x" }""", "{}", node), Resolve)
             .ShouldContain(i => i.Message.Contains($"at most {ContentTreeValidator.MaxDepth} levels"));
     }
 }
 
-public class NodeValuesTests
+public class NodeValuesTests : NodeValuesRules
+{
+    protected override IContentValidator Rules { get; } = new LegacyContentValidator();
+}
+
+public class SchemaNodeValuesTests : NodeValuesRules
+{
+    protected override IContentValidator Rules { get; } = new ParityChecked();
+}
+
+public abstract class NodeValuesRules
 {
     private static readonly FieldSnapshot Image = Publish("block.image", Image(), new Dictionary<string, int>());
+
+    protected abstract IContentValidator Rules { get; }
 
     [Fact]
     public void ChecksOneNodeWithoutItsPlaceInATree()
     {
-        ContentTreeValidator.ValidateValues(Image, Json("""{ "asset": "a1", "caption": "The venue" }"""), Json("""{ "width": "half" }"""))
+        Rules.ValidateValues(Image, Json("""{ "asset": "a1", "caption": "The venue" }"""), Json("""{ "width": "half" }"""))
             .ShouldBeEmpty();
 
-        ContentTreeValidator.ValidateValues(Image, Json("""{ "caption": "x" }"""), Json("""{ "width": "huge" }"""))
+        Rules.ValidateValues(Image, Json("""{ "caption": "x" }"""), Json("""{ "width": "huge" }"""))
             .Select(i => i.Path).ShouldBe(["/content/asset", "/style/width"]);
     }
 }

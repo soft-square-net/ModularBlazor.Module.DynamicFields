@@ -113,7 +113,7 @@ public class FieldHandlers
             Published("block.image", Image()),
             Published("post.news", NewsPost(), new() { ["block.paragraph"] = 1, ["block.image"] = 1 })
         ]);
-        var handler = new ValidateContentHandler(_read, _lookups);
+        var handler = new ValidateContentHandler(_read, _lookups, new ParityChecked());
 
         (await handler.Handle(new ValidateContentQuery(Post()), Ct)).Value.Valid.ShouldBeTrue();
 

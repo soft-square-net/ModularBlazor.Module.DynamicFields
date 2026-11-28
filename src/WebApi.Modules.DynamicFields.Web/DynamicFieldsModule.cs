@@ -16,7 +16,12 @@ public sealed class DynamicFieldsModule : IRuntimeModule
     public ModuleManifest Manifest { get; } = new("dynamicfields", "DynamicFields", "0.1.0", "dynamicfields")
     {
         Description = "DynamicFields: reusable, versioned content fields (schema.org types, values, style tokens, allowed children) and validation of content trees made with them.",
-        DefaultSettings = new Dictionary<string, string?> { ["DynamicFields:MaxPageSize"] = "100" },
+        DefaultSettings = new Dictionary<string, string?>
+        {
+            ["DynamicFields:MaxPageSize"] = "100",
+            // legacy, schema or compare (both: the legacy answer, differences logged).
+            ["DynamicFields:ValidationEngine"] = "compare"
+        },
         Permissions = DynamicFieldsPermissions.All
     };
 

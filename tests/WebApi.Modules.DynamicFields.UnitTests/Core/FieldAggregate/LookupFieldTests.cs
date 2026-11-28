@@ -91,7 +91,7 @@ public class LookupFieldTests
         Publish("block.stock", Draft(properties), new Dictionary<string, int>());
 
     private static IReadOnlyList<ContentIssue> Shape(FieldSnapshot field, string content) =>
-        ContentTreeValidator.ValidateValues(field, Json(content), Json("{}"));
+        new ParityChecked().ValidateValues(field, Json(content), Json("{}"));
 
     [Fact]
     public void ALookupValueIsKeyAndText()

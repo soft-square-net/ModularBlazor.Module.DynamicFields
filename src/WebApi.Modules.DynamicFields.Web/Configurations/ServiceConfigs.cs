@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using soft.square.net.WebApi.Modules.DynamicFields.Infrastructure;
+using soft.square.net.WebApi.Modules.DynamicFields.UseCases.Content.Engine;
 
 namespace soft.square.net.WebApi.Modules.DynamicFields.Web.Configurations;
 
@@ -16,6 +17,8 @@ public static class ServiceConfigs
         services.AddInfrastructureServices();
 
         // Services shared by several use cases go here (AddScoped<...>()); handlers themselves need no registration.
+        // The content check: one per module load (it holds the schema engine's dialect).
+        services.AddSingleton<IContentValidator, ContentValidator>();
 
         services.AddMediatorSourceGen();
         return services;
