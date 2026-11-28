@@ -116,7 +116,7 @@ public class ContentTranslatorTests
         result.Root.Children![0].Content.GetProperty("text").GetString().ShouldBe("<p>Opening text</p>");
         result.Languages.OrderBy(l => l.Key).ShouldBe([new("ar", 1), new("ar-EG", 1)]);
         result.Untranslated.ShouldBe(1);
-        ContentTreeValidator.Validate(result.Root, Fields).ShouldBeEmpty();
+        new ParityChecked().Validate(result.Root, Fields).ShouldBeEmpty();
     }
 
     [Fact]
