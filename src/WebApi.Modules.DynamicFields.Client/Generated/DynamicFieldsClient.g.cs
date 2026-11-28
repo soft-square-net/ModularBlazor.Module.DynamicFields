@@ -1692,6 +1692,10 @@ namespace soft.square.net.WebApi.Modules.DynamicFields.Client
         [System.ComponentModel.DataAnnotations.Required]
         public System.Collections.Generic.IReadOnlyList<ContentIssue> Issues { get; set; } = new System.Collections.Generic.List<ContentIssue>();
 
+        [System.Text.Json.Serialization.JsonPropertyName("warnings")]
+        [System.ComponentModel.DataAnnotations.Required]
+        public System.Collections.Generic.IReadOnlyList<ContentIssue> Warnings { get; set; } = new System.Collections.Generic.List<ContentIssue>();
+
         private System.Collections.Generic.IDictionary<string, object>? _additionalProperties;
 
         [System.Text.Json.Serialization.JsonExtensionData]

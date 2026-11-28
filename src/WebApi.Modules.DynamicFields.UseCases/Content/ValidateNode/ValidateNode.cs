@@ -25,6 +25,6 @@ public sealed class ValidateNodeHandler(IReadRepository<FieldDefinition> fields,
         var issues = ContentTreeValidator.ValidateValues(version.Snapshot, query.Content, query.Style).ToList();
         var node = new ContentNode(version.Snapshot.Key, version.Snapshot.Version, query.Content, query.Style);
         await LookupReferences.CheckAsync([(node, version.Snapshot, "")], lookups, issues, ct);
-        return new ContentReport(issues.Count == 0, issues);
+        return ContentReport.Of(issues);
     }
 }
