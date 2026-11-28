@@ -1,0 +1,53 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.soft-square.net/dynamicfields/2026-12/meta/ui",
+  "$dynamicAnchor": "meta",
+  "title": "DynamicFields editor vocabulary",
+  "description": "Annotations for editors: value groups, the dialog that edits a field, and whether (and where) a post can be made of it.",
+  "type": [
+    "object",
+    "boolean"
+  ],
+  "properties": {
+    "group": {
+      "description": "The key of the group a value is in.",
+      "type": "string",
+      "minLength": 1
+    },
+    "groups": {
+      "description": "A root field's value groups, in order; the first is the default.",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "key",
+          "title"
+        ],
+        "properties": {
+          "key": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "editorDialog": {
+      "description": "Another module's dialog that edits this field instead of the generic editor.",
+      "type": "string",
+      "minLength": 1
+    },
+    "canBeRoot": {
+      "description": "Whether a post can be made of this field.",
+      "type": "boolean"
+    },
+    "urlPrefix": {
+      "description": "A root field's public route prefix: news, ar/news.",
+      "type": "string"
+    }
+  }
+}

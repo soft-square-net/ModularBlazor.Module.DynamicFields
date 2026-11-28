@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.soft-square.net/dynamicfields/2026-12/meta/schema-org",
+  "$dynamicAnchor": "meta",
+  "title": "DynamicFields schema.org vocabulary",
+  "description": "Annotations: the schema.org type of content made with a field, and the schema.org property each value is published as (what search engines and AI read).",
+  "type": [
+    "object",
+    "boolean"
+  ],
+  "properties": {
+    "schemaOrgType": {
+      "description": "The schema.org type: NewsArticle, ImageObject, ...",
+      "type": "string",
+      "pattern": "^[A-Z][A-Za-z0-9]*$"
+    },
+    "schemaOrgProperty": {
+      "description": "The schema.org property a value is published as: headline, caption, contentUrl, ...",
+      "type": "string",
+      "pattern": "^[a-z][A-Za-z0-9]*$"
+    }
+  }
+}

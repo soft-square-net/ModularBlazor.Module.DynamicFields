@@ -44,16 +44,19 @@ public sealed record FieldDetailDto(
 }
 
 /// <summary>
-/// A published version: what content made with it must match (<see cref="Field"/>), and the same as standard JSON
-/// Schema for the content and the style.
+/// A published version: what content made with it must match (<see cref="Field"/>), the same as standard JSON
+/// Schema for the content and the style, and <see cref="Schema"/>: the schema of a whole node made with it, in the
+/// DynamicFields dialect (its <c>$schema</c>; GET /api/dynamicfields/schemas/2026-12/dialect).
 /// </summary>
 public sealed record FieldVersionDto(
-    FieldSnapshot Field, DateTimeOffset PublishedAt, string PublishedBy, JsonElement ContentSchema, JsonElement StyleSchema)
+    FieldSnapshot Field, DateTimeOffset PublishedAt, string PublishedBy, JsonElement ContentSchema, JsonElement StyleSchema,
+    JsonElement Schema)
 {
     public static FieldVersionDto From(FieldVersion v) =>
         new(v.Snapshot, v.PublishedAt, v.PublishedBy,
             JsonSerializer.SerializeToElement(FieldJsonSchema.Content(v.Snapshot)),
-            JsonSerializer.SerializeToElement(FieldJsonSchema.Style(v.Snapshot)));
+            JsonSerializer.SerializeToElement(FieldJsonSchema.Style(v.Snapshot)),
+            JsonSerializer.SerializeToElement(FieldSchemaCompiler.Compile(v.Snapshot)));
 }
 
 /// <summary>One page of fields and the total across all pages.</summary>

@@ -12,4 +12,9 @@
     <ModuleLayer>Domain</ModuleLayer>
   </PropertyGroup>
 
+  <!-- The DynamicFields dialect of JSON Schema and its vocabularies (FieldDialect serves them). -->
+  <ItemGroup>
+    <EmbeddedResource Include="Schemas\**\*.json" />
+  </ItemGroup>
+
 </Project>

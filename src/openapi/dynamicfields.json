@@ -531,6 +531,40 @@
           }
         }
       }
+    },
+    "/api/dynamicfields/schemas/2026-12/{name}": {
+      "get": {
+        "tags": [
+          "Schemas"
+        ],
+        "summary": "The DynamicFields JSON Schema dialect (name: dialect) or a vocabulary's meta-schema (reference, schema-org, style, ui, i18n).",
+        "operationId": "DynamicFields_GetDialectSchema",
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "404": {
+            "description": "Not Found"
+          },
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/schema+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Stream"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -1070,7 +1104,8 @@
           "publishedAt",
           "publishedBy",
           "contentSchema",
-          "styleSchema"
+          "styleSchema",
+          "schema"
         ],
         "type": "object",
         "properties": {
@@ -1088,6 +1123,9 @@
             "$ref": "#/components/schemas/JsonElement"
           },
           "styleSchema": {
+            "$ref": "#/components/schemas/JsonElement"
+          },
+          "schema": {
             "$ref": "#/components/schemas/JsonElement"
           }
         }
@@ -1764,6 +1802,10 @@
           }
         }
       },
+      "Stream": {
+        "type": "string",
+        "format": "binary"
+      },
       "StyleProperty": {
         "required": [
           "key",
@@ -2034,6 +2076,9 @@
     },
     {
       "name": "Catalog"
+    },
+    {
+      "name": "Schemas"
     }
   ]
 }
