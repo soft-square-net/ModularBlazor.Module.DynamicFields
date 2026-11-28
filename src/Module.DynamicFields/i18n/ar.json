@@ -255,5 +255,11 @@
   "Photo story": "قصة مصورة",
   "A story told mainly in pictures, with image galleries among its blocks.": "قصة تُروى أساسًا بالصور، ومن كتلها معارض صور.",
   "Other": "أخرى",
-  "A post of no other kind, made of blocks.": "منشور لا ينتمي إلى نوع آخر، يتكون من كتل."
+  "A post of no other kind, made of blocks.": "منشور لا ينتمي إلى نوع آخر، يتكون من كتل.",
+  "Sections": "الأقسام",
+  "needs attention": "يحتاج إلى مراجعة",
+  "done": "مكتمل",
+  "What it is": "ما هو",
+  "What it can contain": "ما يمكن أن يحتويه",
+  "Live": "مباشر"
 }
