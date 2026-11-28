@@ -615,7 +615,8 @@
       "ContentReport": {
         "required": [
           "valid",
-          "issues"
+          "issues",
+          "warnings"
         ],
         "type": "object",
         "properties": {
@@ -623,6 +624,12 @@
             "type": "boolean"
           },
           "issues": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ContentIssue"
+            }
+          },
+          "warnings": {
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/ContentIssue"

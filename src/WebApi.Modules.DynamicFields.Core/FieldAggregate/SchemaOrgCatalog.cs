@@ -333,9 +333,10 @@ public static class StylePresets
     public static StyleProperty Spacing { get; } = new("spacing", "Spacing", ["none", "sm", "md", "lg", "xl"], Responsive: true, Default: "md");
     public static StyleProperty Tone { get; } = new("tone", "Tone", ["default", "muted", "accent", "inverse"], Responsive: true, Default: "default");
     public static StyleProperty Size { get; } = new("size", "Text size", ["sm", "md", "lg", "xl"], Responsive: true, Default: "md");
+    /// <summary>Without h1: a page has one, its headline, so a heading block starts at h2.</summary>
     public static StyleProperty Level { get; } = new("level", "Heading level", ["h2", "h3", "h4", "h5", "h6"], Default: "h2");
-    public static StyleProperty Aspect { get; } = new("aspect", "Aspect ratio", ["auto", "1-1", "4-3", "3-2", "16-9", "21-9"], Responsive: true, Default: "auto");
-    public static StyleProperty Columns { get; } = new("columns", "Columns", ["1", "2", "3", "4", "6"], Responsive: true, Default: "3");
+    public static StyleProperty Aspect { get; } = new("aspect", "Aspect ratio", ["auto", "1-1", "4-3", "3-2", "16-9", "21-9", "3-4", "9-16"], Responsive: true, Default: "auto");
+    public static StyleProperty Columns { get; } = new("columns", "Columns", ["1", "2", "3", "4", "5", "6", "12"], Responsive: true, Default: "3");
     public static StyleProperty Layout { get; } = new("layout", "Layout", ["standard", "wide", "full"], Default: "standard");
 
     public static IReadOnlyList<StyleProperty> All { get; } = [Width, Align, Spacing, Tone, Size, Level, Aspect, Columns, Layout];
